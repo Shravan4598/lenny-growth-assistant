@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import time
+from typing import Any
 
 import httpx
 import structlog
@@ -14,7 +17,7 @@ logger = structlog.get_logger(__name__)
 class OllamaProvider(LLMProvider):
     """LLM provider implementation for Ollama."""
 
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._base_url = settings.ollama_base_url.rstrip("/")
         self._model = settings.ollama_model
@@ -22,25 +25,30 @@ class OllamaProvider(LLMProvider):
 
     @property
     def provider_name(self) -> str:
+        """Return the provider name."""
         return "ollama"
 
     @property
     def model_name(self) -> str:
+        """Return the configured model name."""
         return self._model
 
     async def health_check(self) -> LLMHealthStatus:
-        """Verify that Ollama and the configured model are available."""
+        """Check whether Ollama and the configured model are available."""
 
         try:
             timeout = httpx.Timeout(self._timeout)
 
-            async with httpx.AsyncClient(timeout=timeout) as client:
+            async with httpx.AsyncClient(
+                timeout=timeout
+            ) as client:
                 response = await client.get(
                     f"{self._base_url}/api/tags"
                 )
+
                 response.raise_for_status()
 
-                payload = response.json()
+                payload: dict[str, Any] = response.json()
 
         except httpx.TimeoutException:
             logger.warning(
@@ -68,7 +76,7 @@ class OllamaProvider(LLMProvider):
                 healthy=False,
                 detail=(
                     "Local model service unavailable. "
-                    "Start Ollama and verify it is running."
+                    "Start Ollama and verify that it is running."
                 ),
             )
 
@@ -77,7 +85,7 @@ class OllamaProvider(LLMProvider):
         model_names = {
             model.get("name")
             for model in models
-            if model.get("name")
+            if isinstance(model, dict) and model.get("name")
         }
 
         if self._model not in model_names:
@@ -87,8 +95,7 @@ class OllamaProvider(LLMProvider):
                 healthy=False,
                 detail=(
                     f"Configured Ollama model '{self._model}' "
-                    "is not installed. Run the appropriate "
-                    "ollama pull command."
+                    "is not installed."
                 ),
             )
 
@@ -96,7 +103,64 @@ class OllamaProvider(LLMProvider):
             provider=self.provider_name,
             model=self.model_name,
             healthy=True,
-            detail="Ollama service and configured model are available.",
+            detail=(
+                "Ollama service and configured model "
+                "are available."
+            ),
+        )
+
+    async def model_available(self) -> tuple[bool, str]:
+        """Check whether the configured Ollama model is installed."""
+
+        try:
+            timeout = httpx.Timeout(self._timeout)
+
+            async with httpx.AsyncClient(
+                timeout=timeout
+            ) as client:
+                response = await client.get(
+                    f"{self._base_url}/api/tags"
+                )
+
+                response.raise_for_status()
+
+                payload: dict[str, Any] = response.json()
+
+        except httpx.TimeoutException:
+            logger.warning(
+                "ollama_model_check_timeout",
+                base_url=self._base_url,
+            )
+
+            return False, "Ollama model check timed out."
+
+        except httpx.HTTPError as exc:
+            logger.warning(
+                "ollama_model_check_failed",
+                base_url=self._base_url,
+                error=str(exc),
+            )
+
+            return False, (
+                "Ollama service is unavailable. "
+                "Start Ollama and try again."
+            )
+
+        models = payload.get("models", [])
+
+        model_names = {
+            model.get("name")
+            for model in models
+            if isinstance(model, dict) and model.get("name")
+        }
+
+        if self._model in model_names:
+            return True, (
+                f"Configured model '{self._model}' is available."
+            )
+
+        return False, (
+            f"Configured model '{self._model}' is not available."
         )
 
     async def generate(
@@ -107,6 +171,13 @@ class OllamaProvider(LLMProvider):
         max_tokens: int | None = None,
     ) -> LLMResponse:
         """Generate text using Ollama."""
+
+        if not prompt or not prompt.strip():
+            raise AppError(
+                status_code=400,
+                code="INVALID_PROMPT",
+                message="Prompt must not be empty.",
+            )
 
         started_at = time.perf_counter()
 
@@ -127,14 +198,17 @@ class OllamaProvider(LLMProvider):
         try:
             timeout = httpx.Timeout(self._timeout)
 
-            async with httpx.AsyncClient(timeout=timeout) as client:
+            async with httpx.AsyncClient(
+                timeout=timeout
+            ) as client:
                 response = await client.post(
                     f"{self._base_url}/api/generate",
                     json=request_payload,
                 )
+
                 response.raise_for_status()
 
-                payload = response.json()
+                payload: dict[str, Any] = response.json()
 
         except httpx.TimeoutException as exc:
             logger.warning(
@@ -164,10 +238,19 @@ class OllamaProvider(LLMProvider):
                 code="OLLAMA_UNAVAILABLE",
                 message=(
                     "Local model service unavailable. "
-                    "Start Ollama and verify the configured model "
-                    "is installed."
+                    "Start Ollama and verify the configured "
+                    "model is installed."
                 ),
             ) from exc
+
+        response_text = payload.get("response")
+
+        if not response_text:
+            raise AppError(
+                status_code=502,
+                code="EMPTY_LLM_RESPONSE",
+                message="Ollama returned an empty response.",
+            )
 
         duration_ms = round(
             (time.perf_counter() - started_at) * 1000,
@@ -182,8 +265,13 @@ class OllamaProvider(LLMProvider):
         )
 
         return LLMResponse(
-            content=payload.get("response", ""),
-            model=payload.get("model", self._model),
+            content=str(response_text).strip(),
+            model=str(
+                payload.get(
+                    "model",
+                    self._model,
+                )
+            ),
             provider=self.provider_name,
             raw_response=payload,
         )

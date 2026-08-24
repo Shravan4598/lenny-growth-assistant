@@ -8,10 +8,12 @@ from app.llm.ollama import OllamaProvider
 def create_llm_provider(settings: Settings) -> LLMProvider:
     """Create the configured LLM provider."""
 
-    if settings.llm_provider == "ollama":
+    provider = settings.llm_provider.strip().lower()
+
+    if provider == "ollama":
         return OllamaProvider(settings)
 
-    if settings.llm_provider == "cloud":
+    if provider == "cloud":
         return CloudProvider(settings)
 
     raise AppError(

@@ -14,6 +14,10 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # ------------------------------------------------------------------
+    # Application
+    # ------------------------------------------------------------------
+
     app_name: str = Field(
         default="The Lenny Growth Assistant",
         alias="APP_NAME",
@@ -43,6 +47,10 @@ class Settings(BaseSettings):
         default=["http://localhost:5173"],
         alias="CORS_ORIGINS",
     )
+
+    # ------------------------------------------------------------------
+    # Database
+    # ------------------------------------------------------------------
 
     database_url: str = Field(
         default=(
@@ -103,6 +111,10 @@ class Settings(BaseSettings):
         default=None,
         alias="CLOUD_MODEL",
     )
+
+    # ------------------------------------------------------------------
+    # Validators
+    # ------------------------------------------------------------------
 
     @field_validator("cors_origins", mode="before")
     @classmethod
