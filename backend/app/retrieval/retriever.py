@@ -1,9 +1,6 @@
-import numpy as np
-
 from app.retrieval.embeddings import embed_texts
 from app.retrieval.models import RetrievedChunk
 from app.retrieval.vector_store import FaissVectorStore
-from pydantic import Field, BaseModel
 
 
 class TranscriptRetriever:
@@ -12,14 +9,11 @@ class TranscriptRetriever:
     def __init__(
         self,
         vector_store: FaissVectorStore,
-        retrieval_embedding_model: str = Field(
-    default="all-MiniLM-L6-v2",
-    alias="RETRIEVAL_EMBEDDING_MODEL",
-),
+        retrieval_embedding_model: str = "all-MiniLM-L6-v2",
         min_score: float = 0.25,
     ) -> None:
         self.vector_store = vector_store
-        self.embedding_model =retrieval_embedding_model
+        self.embedding_model = retrieval_embedding_model
         self.min_score = min_score
 
     def retrieve(
@@ -32,6 +26,9 @@ class TranscriptRetriever:
         query = query.strip()
 
         if not query:
+            return []
+
+        if top_k <= 0:
             return []
 
         embedding = embed_texts(

@@ -26,7 +26,7 @@ class RetrievalService:
 
         self.retriever = TranscriptRetriever(
             vector_store=self.vector_store,
-            embedding_model=retrieval_embedding_model,
+            retrieval_embedding_model=retrieval_embedding_model,
             min_score=min_score,
         )
 

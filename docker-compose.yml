@@ -40,6 +40,9 @@ services:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/lenny_growth
       OLLAMA_BASE_URL: http://host.docker.internal:11434
 
+    volumes:
+      - ./data:/app/data
+
     ports:
       - "8000:8000"
 
