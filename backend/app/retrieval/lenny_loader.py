@@ -4,7 +4,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+from app.core.exceptions import AppError
 from app.retrieval.models import Transcript
+
+
+DEFAULT_CONTENT_TYPES = {"podcasts"}
 
 
 class LennyRepositoryLoader:
@@ -19,29 +23,52 @@ class LennyRepositoryLoader:
 
         self.content_types = {
             item.strip().lower()
-            for item in (content_types or {"podcasts"})
+            for item in (
+                content_types or DEFAULT_CONTENT_TYPES
+            )
             if item.strip()
         }
+
+        if not self.content_types:
+            raise AppError(
+                status_code=400,
+                code="INVALID_CONTENT_TYPES",
+                message="At least one content type must be configured.",
+            )
 
     def load(self) -> list[Transcript]:
         """Load supported content from the repository."""
 
         if not self.repository_path.exists():
-            raise FileNotFoundError(
-                f"Lenny repository not found: {self.repository_path}"
+            raise AppError(
+                status_code=404,
+                code="LENNY_REPOSITORY_NOT_FOUND",
+                message=(
+                    "Lenny repository not found: "
+                    f"{self.repository_path}"
+                ),
             )
 
         if not self.repository_path.is_dir():
-            raise NotADirectoryError(
-                f"Lenny repository path is not a directory: "
-                f"{self.repository_path}"
+            raise AppError(
+                status_code=400,
+                code="INVALID_LENNY_REPOSITORY_PATH",
+                message=(
+                    "Lenny repository path is not a directory: "
+                    f"{self.repository_path}"
+                ),
             )
 
         index_path = self.repository_path / "index.json"
 
         if not index_path.exists():
-            raise FileNotFoundError(
-                f"Repository metadata file not found: {index_path}"
+            raise AppError(
+                status_code=404,
+                code="LENNY_INDEX_NOT_FOUND",
+                message=(
+                    "Repository metadata file not found: "
+                    f"{index_path}"
+                ),
             )
 
         records = self._load_index(index_path)
@@ -60,11 +87,14 @@ class LennyRepositoryLoader:
             if not relative_path:
                 continue
 
-            source_path = self.repository_path / relative_path
+            source_path = (
+                self.repository_path / relative_path
+            )
 
             if not source_path.exists():
                 print(
-                    f"Warning: transcript file not found: {source_path}"
+                    "Warning: transcript file not found: "
+                    f"{source_path}"
                 )
                 continue
 
@@ -75,9 +105,18 @@ class LennyRepositoryLoader:
                 text = source_path.read_text(
                     encoding="utf-8",
                 ).strip()
+
             except UnicodeDecodeError:
                 print(
-                    f"Warning: unable to decode file: {source_path}"
+                    "Warning: unable to decode file: "
+                    f"{source_path}"
+                )
+                continue
+
+            except OSError as exc:
+                print(
+                    "Warning: unable to read file: "
+                    f"{source_path}. Error: {exc}"
                 )
                 continue
 
@@ -107,10 +146,15 @@ class LennyRepositoryLoader:
             transcripts.append(transcript)
 
         if not transcripts:
-            raise ValueError(
-                "No supported transcript records were loaded. "
-                f"Configured content types: {sorted(self.content_types)}. "
-                "Check repository layout and transcript files."
+            raise AppError(
+                status_code=404,
+                code="NO_TRANSCRIPTS_FOUND",
+                message=(
+                    "No supported transcript records were loaded. "
+                    f"Configured content types: "
+                    f"{sorted(self.content_types)}. "
+                    "Check repository layout and transcript files."
+                ),
             )
 
         print(
@@ -124,38 +168,48 @@ class LennyRepositoryLoader:
     def _load_index(
         index_path: Path,
     ) -> list[tuple[str, dict[str, Any]]]:
-        """
-        Load repository index.
+        """Load repository index."""
 
-        Supports formats such as:
+        try:
+            with index_path.open(
+                "r",
+                encoding="utf-8",
+            ) as file:
+                data = json.load(file)
 
-        {
-            "podcasts": [...],
-            "newsletters": [...]
-        }
+        except json.JSONDecodeError as exc:
+            raise AppError(
+                status_code=500,
+                code="INVALID_LENNY_INDEX",
+                message=(
+                    "Repository index.json contains invalid JSON."
+                ),
+            ) from exc
 
-        and generic formats such as:
-
-        {
-            "items": [...]
-        }
-        """
-
-        with index_path.open(
-            "r",
-            encoding="utf-8",
-        ) as file:
-            data = json.load(file)
+        except OSError as exc:
+            raise AppError(
+                status_code=500,
+                code="LENNY_INDEX_READ_FAILED",
+                message=(
+                    "Unable to read repository index.json."
+                ),
+            ) from exc
 
         results: list[tuple[str, dict[str, Any]]] = []
+
+        # ---------------------------------------------------------
+        # List format
+        # ---------------------------------------------------------
 
         if isinstance(data, list):
             for record in data:
                 if not isinstance(record, dict):
                     continue
 
-                content_type = LennyRepositoryLoader._detect_content_type(
-                    record
+                content_type = (
+                    LennyRepositoryLoader._detect_content_type(
+                        record
+                    )
                 )
 
                 results.append(
@@ -168,9 +222,13 @@ class LennyRepositoryLoader:
             return results
 
         if not isinstance(data, dict):
-            raise ValueError(
-                "Unsupported index.json structure. "
-                "Expected a JSON object or list."
+            raise AppError(
+                status_code=500,
+                code="INVALID_LENNY_INDEX_STRUCTURE",
+                message=(
+                    "Unsupported index.json structure. "
+                    "Expected a JSON object or list."
+                ),
             )
 
         # ---------------------------------------------------------
@@ -237,10 +295,14 @@ class LennyRepositoryLoader:
                 if results:
                     return results
 
-        raise ValueError(
-            "Unsupported index.json structure. "
-            "Expected 'podcasts'/'newsletters' arrays or "
-            "a generic records/items/data structure."
+        raise AppError(
+            status_code=500,
+            code="UNSUPPORTED_LENNY_INDEX",
+            message=(
+                "Unsupported index.json structure. "
+                "Expected 'podcasts'/'newsletters' arrays "
+                "or a generic records/items/data structure."
+            ),
         )
 
     @staticmethod
@@ -264,7 +326,6 @@ class LennyRepositoryLoader:
         if "newsletter" in value:
             return "newsletters"
 
-        # Actual repository records commonly use filename.
         path = str(
             record.get("filename")
             or record.get("path")
@@ -272,6 +333,8 @@ class LennyRepositoryLoader:
             or record.get("filepath")
             or ""
         ).lower()
+
+        path = path.replace("\\", "/")
 
         if "podcasts/" in path:
             return "podcasts"
@@ -288,7 +351,6 @@ class LennyRepositoryLoader:
     ) -> str | None:
         """Extract the transcript file path."""
 
-        # Actual Lenny repository uses "filename".
         for key in (
             "filename",
             "path",
@@ -305,9 +367,10 @@ class LennyRepositoryLoader:
             if not path:
                 continue
 
-            # Already contains podcasts/... or newsletters/...
-            if "/" in path or "\\" in path:
-                return path.replace("\\", "/")
+            path = path.replace("\\", "/")
+
+            if "/" in path:
+                return path
 
             return f"{content_type}/{path}"
 
@@ -382,7 +445,6 @@ class LennyRepositoryLoader:
     ) -> str | None:
         """Extract original Lenny source URL."""
 
-        # Actual repository uses post_url.
         for key in (
             "post_url",
             "source_url",

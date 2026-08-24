@@ -44,7 +44,11 @@ class Settings(BaseSettings):
     )
 
     cors_origins: list[str] = Field(
-        default=["http://localhost:5173"],
+        default=[
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://localhost:8501",
+        ],
         alias="CORS_ORIGINS",
     )
 
@@ -86,6 +90,15 @@ class Settings(BaseSettings):
     ollama_model: str = Field(
         default="qwen2.5:3b",
         alias="OLLAMA_MODEL",
+    )
+
+    # ------------------------------------------------------------------
+    # Retrieval
+    # ------------------------------------------------------------------
+
+    retrieval_index_path: str = Field(
+        default="data/index/lenny.faiss",
+        alias="RETRIEVAL_INDEX_PATH",
     )
 
     # ------------------------------------------------------------------

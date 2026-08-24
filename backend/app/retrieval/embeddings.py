@@ -24,7 +24,7 @@ def embed_texts(
 
     if not texts:
         return np.empty(
-            (0, 384),
+            (0, 0),
             dtype="float32",
         )
 

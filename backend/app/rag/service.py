@@ -1,3 +1,4 @@
+from app.core.exceptions import AppError
 from app.llm.base import LLMProvider
 from app.rag.models import ChatResponse, SourceResponse
 from app.rag.prompts import build_rag_prompt
@@ -25,8 +26,14 @@ class RAGService:
 
         question = question.strip()
 
+        # Validate the user's question using the application's
+        # standard error system.
         if not question:
-            raise ValueError("Question cannot be empty.")
+            raise AppError(
+                status_code=400,
+                code="INVALID_QUESTION",
+                message="Question cannot be empty.",
+            )
 
         retrieved_chunks = self.retrieval_service.retrieve(
             query=question,
