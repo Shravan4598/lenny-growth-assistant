@@ -2,7 +2,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from backend.app.retrieval.service import RetrievalService
+from app.retrieval.service import RetrievalService
 
 
 def parse_args() -> argparse.Namespace:
