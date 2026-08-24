@@ -228,3 +228,13 @@ data/processed/*
 
 *.faiss
 *.metadata.json
+
+# External knowledge source
+data/external/
+
+# Generated retrieval artifacts
+data/processed/*
+!data/processed/.gitkeep
+*.faiss
+*.metadata.json
+
