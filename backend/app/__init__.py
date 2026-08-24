@@ -1,0 +1,1 @@
+"""The Lenny Growth Assistant backend."""
