@@ -1,5 +1,7 @@
+from app.llm.base import LLMProvider
 from app.rag.models import ChatResponse, SourceResponse
 from app.rag.prompts import build_rag_prompt
+from app.retrieval.models import RetrievedChunk
 from app.retrieval.service import RetrievalService
 
 
@@ -9,12 +11,12 @@ class RAGService:
     def __init__(
         self,
         retrieval_service: RetrievalService,
-        llm_provider,
+        llm_provider: LLMProvider,
     ) -> None:
         self.retrieval_service = retrieval_service
         self.llm_provider = llm_provider
 
-    def answer(
+    async def answer(
         self,
         question: str,
         top_k: int = 5,
@@ -40,8 +42,10 @@ class RAGService:
             context=context,
         )
 
-        result = self.llm_provider.generate(
-            prompt=prompt,
+        result = await self.llm_provider.generate(
+            prompt,
+            temperature=0.2,
+            max_tokens=None,
         )
 
         sources = [
@@ -59,22 +63,20 @@ class RAGService:
         return ChatResponse(
             provider=result.provider,
             model=result.model,
-            response=result.response,
+            response=result.content,
             sources=sources,
         )
 
     @staticmethod
     def _build_context(
-        retrieved_chunks,
+        retrieved_chunks: list[RetrievedChunk],
     ) -> str:
         """Convert retrieved chunks into LLM context."""
 
         if not retrieved_chunks:
-            return (
-                "No relevant transcript context was found."
-            )
+            return "No relevant transcript context was found."
 
-        sections = []
+        sections: list[str] = []
 
         for index, item in enumerate(
             retrieved_chunks,
@@ -82,16 +84,18 @@ class RAGService:
         ):
             chunk = item.chunk
 
-            sections.append(
-                f"""
+            section = f"""
 SOURCE {index}
+
 Title: {chunk.title}
 Guest: {chunk.guest or "Unknown"}
 Date: {chunk.date or "Unknown"}
 URL: {chunk.source_url or "N/A"}
 
+Transcript:
 {chunk.text}
 """.strip()
-            )
+
+            sections.append(section)
 
         return "\n\n".join(sections)

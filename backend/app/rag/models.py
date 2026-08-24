@@ -2,24 +2,23 @@ from pydantic import BaseModel, Field
 
 
 class ChatRequest(BaseModel):
-    """Request for a RAG-powered chat response."""
+    """Request body for RAG chat."""
 
     prompt: str = Field(
+        ...,
         min_length=1,
-        max_length=4000,
-        description="User's question.",
+        max_length=20_000,
     )
 
     top_k: int = Field(
         default=5,
         ge=1,
         le=10,
-        description="Number of transcript chunks to retrieve.",
     )
 
 
 class SourceResponse(BaseModel):
-    """Source information returned with an answer."""
+    """Metadata for a retrieved source."""
 
     chunk_id: str
     title: str
@@ -30,7 +29,7 @@ class SourceResponse(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    """RAG response."""
+    """Response from the RAG pipeline."""
 
     provider: str
     model: str
