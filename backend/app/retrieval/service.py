@@ -3,8 +3,9 @@ from pathlib import Path
 from app.retrieval.cleaner import clean_transcript
 from app.retrieval.chunker import chunk_transcript
 from app.retrieval.embeddings import embed_texts
+from app.retrieval.lenny_loader import LennyRepositoryLoader
 from app.retrieval.loader import load_transcripts
-from app.retrieval.models import RetrievedChunk
+from app.retrieval.models import RetrievedChunk, Transcript
 from app.retrieval.retriever import TranscriptRetriever
 from app.retrieval.vector_store import FaissVectorStore
 
@@ -32,9 +33,33 @@ class RetrievalService:
         self,
         source_path: str | Path,
     ) -> int:
-        """Load, clean, chunk, embed and index transcripts."""
+        """Ingest transcripts from a JSON source."""
 
         transcripts = load_transcripts(source_path)
+
+        return self._index_transcripts(transcripts)
+
+    def ingest_lenny_repository(
+        self,
+        repository_path: str | Path,
+        content_types: set[str] | None = None,
+    ) -> int:
+        """Ingest content from Lenny's Data repository."""
+
+        loader = LennyRepositoryLoader(
+            repository_path=repository_path,
+            content_types=content_types,
+        )
+
+        transcripts = loader.load()
+
+        return self._index_transcripts(transcripts)
+
+    def _index_transcripts(
+        self,
+        transcripts: list[Transcript],
+    ) -> int:
+        """Clean, chunk, embed and index transcripts."""
 
         cleaned = [
             clean_transcript(transcript)
