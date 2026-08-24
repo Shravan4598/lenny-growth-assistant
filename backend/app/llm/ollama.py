@@ -4,7 +4,7 @@ import httpx
 import structlog
 
 from app.core.config import Settings
-from app.core.exceptions import AppException
+from app.core.exceptions import AppError
 from app.llm.base import LLMHealthStatus, LLMProvider, LLMResponse
 
 
@@ -143,7 +143,7 @@ class OllamaProvider(LLMProvider):
                 timeout_seconds=self._timeout,
             )
 
-            raise AppException(
+            raise AppError(
                 status_code=504,
                 code="LLM_TIMEOUT",
                 message=(
@@ -159,7 +159,7 @@ class OllamaProvider(LLMProvider):
                 error=str(exc),
             )
 
-            raise AppException(
+            raise AppError(
                 status_code=503,
                 code="OLLAMA_UNAVAILABLE",
                 message=(

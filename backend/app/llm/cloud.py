@@ -4,7 +4,7 @@ import httpx
 import structlog
 
 from app.core.config import Settings
-from app.core.exceptions import AppException
+from app.core.exceptions import AppError
 from app.llm.base import LLMHealthStatus, LLMProvider, LLMResponse
 
 
@@ -26,21 +26,21 @@ class CloudProvider(LLMProvider):
         self._settings = settings
 
         if not settings.cloud_provider:
-            raise AppException(
+            raise AppError(
                 status_code=500,
                 code="CLOUD_PROVIDER_NOT_CONFIGURED",
                 message="CLOUD_PROVIDER is required when LLM_PROVIDER=cloud.",
             )
 
         if not settings.cloud_base_url:
-            raise AppException(
+            raise AppError(
                 status_code=500,
                 code="CLOUD_BASE_URL_NOT_CONFIGURED",
                 message="CLOUD_BASE_URL is required when LLM_PROVIDER=cloud.",
             )
 
         if not settings.cloud_api_key:
-            raise AppException(
+            raise AppError(
                 status_code=500,
                 code="CLOUD_API_KEY_MISSING",
                 message=(
@@ -50,7 +50,7 @@ class CloudProvider(LLMProvider):
             )
 
         if not settings.cloud_model:
-            raise AppException(
+            raise AppError(
                 status_code=500,
                 code="CLOUD_MODEL_NOT_CONFIGURED",
                 message="CLOUD_MODEL is required when LLM_PROVIDER=cloud.",
@@ -165,14 +165,14 @@ class CloudProvider(LLMProvider):
                 response_payload = response.json()
 
         except httpx.TimeoutException as exc:
-            raise AppException(
+            raise AppError(
                 status_code=504,
                 code="LLM_TIMEOUT",
                 message="Cloud model request timed out.",
             ) from exc
 
         except httpx.HTTPStatusError as exc:
-            raise AppException(
+            raise AppError(
                 status_code=503,
                 code="CLOUD_LLM_REQUEST_FAILED",
                 message=(
@@ -182,7 +182,7 @@ class CloudProvider(LLMProvider):
             ) from exc
 
         except httpx.HTTPError as exc:
-            raise AppException(
+            raise AppError(
                 status_code=503,
                 code="CLOUD_LLM_UNAVAILABLE",
                 message="Cloud LLM service is unavailable.",
@@ -203,7 +203,7 @@ class CloudProvider(LLMProvider):
         choices = response_payload.get("choices", [])
 
         if not choices:
-            raise AppException(
+            raise AppError(
                 status_code=502,
                 code="INVALID_LLM_RESPONSE",
                 message="Cloud provider returned an unexpected response.",
