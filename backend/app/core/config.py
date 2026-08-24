@@ -52,10 +52,23 @@ class Settings(BaseSettings):
         alias="DATABASE_URL",
     )
 
+    # ------------------------------------------------------------------
+    # LLM provider selection
+    # ------------------------------------------------------------------
+
     llm_provider: str = Field(
         default="ollama",
         alias="LLM_PROVIDER",
     )
+
+    llm_timeout_seconds: float = Field(
+        default=60.0,
+        alias="LLM_TIMEOUT_SECONDS",
+    )
+
+    # ------------------------------------------------------------------
+    # Ollama
+    # ------------------------------------------------------------------
 
     ollama_base_url: str = Field(
         default="http://localhost:11434",
@@ -67,9 +80,23 @@ class Settings(BaseSettings):
         alias="OLLAMA_MODEL",
     )
 
+    # ------------------------------------------------------------------
+    # Cloud provider
+    # ------------------------------------------------------------------
+
     cloud_provider: str | None = Field(
         default=None,
         alias="CLOUD_PROVIDER",
+    )
+
+    cloud_base_url: str | None = Field(
+        default=None,
+        alias="CLOUD_BASE_URL",
+    )
+
+    cloud_api_key: str | None = Field(
+        default=None,
+        alias="CLOUD_API_KEY",
     )
 
     cloud_model: str | None = Field(
@@ -79,20 +106,47 @@ class Settings(BaseSettings):
 
     @field_validator("cors_origins", mode="before")
     @classmethod
-    def parse_cors_origins(cls, value: str | list[str]) -> list[str]:
-        """Parse comma-separated frontend origins."""
+    def parse_cors_origins(cls, value):
+        """Parse JSON lists or comma-separated frontend origins."""
 
         if isinstance(value, list):
             return value
 
-        return [
-            origin.strip()
-            for origin in value.split(",")
-            if origin.strip()
-        ]
+        if isinstance(value, str):
+            value = value.strip()
+
+            if value.startswith("["):
+                import json
+
+                return json.loads(value)
+
+            return [
+                origin.strip()
+                for origin in value.split(",")
+                if origin.strip()
+            ]
+
+        return value
+
+    @field_validator("llm_provider")
+    @classmethod
+    def validate_llm_provider(cls, value: str) -> str:
+        """Validate configured LLM provider."""
+
+        normalized = value.strip().lower()
+
+        allowed_providers = {"ollama", "cloud"}
+
+        if normalized not in allowed_providers:
+            raise ValueError(
+                "LLM_PROVIDER must be either 'ollama' or 'cloud'."
+            )
+
+        return normalized
 
 
 @lru_cache
 def get_settings() -> Settings:
     """Return cached application settings."""
+
     return Settings()
