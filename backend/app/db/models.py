@@ -2,7 +2,15 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, JSON, String, Text, func
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    JSON,
+    String,
+    Text,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -25,6 +33,7 @@ class User(Base):
     metadata_json: Mapped[dict[str, Any]] = mapped_column(
         JSON,
         default=dict,
+        server_default=text("'{}'"),
         nullable=False,
     )
 
@@ -121,6 +130,7 @@ class Message(Base):
     metadata_json: Mapped[dict[str, Any]] = mapped_column(
         JSON,
         default=dict,
+        server_default=text("'{}'"),
         nullable=False,
     )
 
@@ -175,6 +185,7 @@ class Artifact(Base):
     metadata_json: Mapped[dict[str, Any]] = mapped_column(
         JSON,
         default=dict,
+        server_default=text("'{}'"),
         nullable=False,
     )
 

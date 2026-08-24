@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -39,8 +39,16 @@ class Settings(BaseSettings):
         alias="API_PREFIX",
     )
 
+    cors_origins: list[str] = Field(
+        default=["http://localhost:5173"],
+        alias="CORS_ORIGINS",
+    )
+
     database_url: str = Field(
-        default="postgresql+psycopg://postgres:postgres@localhost:5432/lenny_growth",
+        default=(
+            "postgresql+psycopg://postgres:"
+            "postgres@localhost:5432/lenny_growth"
+        ),
         alias="DATABASE_URL",
     )
 
@@ -68,6 +76,20 @@ class Settings(BaseSettings):
         default=None,
         alias="CLOUD_MODEL",
     )
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, value: str | list[str]) -> list[str]:
+        """Parse comma-separated frontend origins."""
+
+        if isinstance(value, list):
+            return value
+
+        return [
+            origin.strip()
+            for origin in value.split(",")
+            if origin.strip()
+        ]
 
 
 @lru_cache
