@@ -1,0 +1,65 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: lenny-growth-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: lenny_growth
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U postgres -d lenny_growth"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  backend:
+    build:
+      context: ./backend
+
+    container_name: lenny-growth-backend
+
+    env_file:
+      - .env
+
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/lenny_growth
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+
+    ports:
+      - "8000:8000"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+
+volumes:
+  postgres_data:
