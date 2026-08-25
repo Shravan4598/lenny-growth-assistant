@@ -7,11 +7,12 @@ from pydantic import BaseModel, Field
 class CreateSessionRequest(BaseModel):
     """Request to create a new chat session."""
 
-    user_metadata: dict = Field(default_factory=dict)
     title: str | None = Field(
         default=None,
         max_length=255,
     )
+
+    user_metadata: dict | None = None
 
 
 class SessionResponse(BaseModel):

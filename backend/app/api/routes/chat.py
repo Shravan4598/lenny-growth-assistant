@@ -1,15 +1,11 @@
-from functools import lru_cache
-from pathlib import Path
-from uuid import UUID
-
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.api.schemas.chat import ChatRequest, ChatResponse
 from app.api.services.session_service import SessionService
-from app.core.config import Settings, get_settings
+from app.core.config import get_settings
 from app.db.session import get_db
 from app.llm.factory import create_llm_provider
-from app.rag.models import ChatRequest, ChatResponse
 from app.rag.service import RAGService
 from app.retrieval.service import RetrievalService
 
@@ -20,33 +16,34 @@ router = APIRouter(
 )
 
 
-@lru_cache(maxsize=1)
-def get_retrieval_service(
-    index_path: str,
-) -> RetrievalService:
-    """Create and cache the retrieval service."""
+def get_retrieval_service() -> RetrievalService:
+    """
+    Create and initialize the retrieval service.
 
-    service = RetrievalService(
-        index_path=index_path,
+    The FAISS index is loaded once when the dependency is created.
+    """
+
+    settings = get_settings()
+
+    retrieval_service = RetrievalService(
+        index_path=settings.retrieval_index_path,
+        retrieval_embedding_model=settings.retrieval_embedding_model,
+        min_score=settings.retrieval_min_score,
     )
 
-    service.load()
+    retrieval_service.load()
 
-    return service
+    return retrieval_service
 
 
 def get_rag_service(
-    settings: Settings = Depends(get_settings),
+    retrieval_service: RetrievalService = Depends(
+        get_retrieval_service
+    ),
 ) -> RAGService:
     """Create the RAG service."""
 
-    index_path = Path(
-        settings.retrieval_index_path,
-    )
-
-    retrieval_service = get_retrieval_service(
-        str(index_path),
-    )
+    settings = get_settings()
 
     llm_provider = create_llm_provider(
         settings,
@@ -78,40 +75,48 @@ async def chat(
     """
     Answer a question using retrieved Lenny knowledge.
 
-    The conversation is persisted when a session_id is provided.
+    If session_id is provided, the conversation is persisted.
     """
 
     # ---------------------------------------------------------
-    # 1. Validate session_id
+    # 1. Validate session
     # ---------------------------------------------------------
-    #
-    # ChatRequest currently does not contain session_id.
-    # Therefore this route temporarily supports session_id
-    # through an optional request attribute.
-    #
-    # If session_id is added to ChatRequest later, this will
-    # automatically use it.
-    #
-    session_id: UUID | None = getattr(
-        request,
-        "session_id",
-        None,
-    )
 
-    # ---------------------------------------------------------
-    # 2. Verify that the session exists
-    # ---------------------------------------------------------
-    if session_id is not None:
+    if request.session_id is not None:
         session_service.get_session(
-            session_id,
+            request.session_id,
         )
 
     # ---------------------------------------------------------
-    # 3. Save the user's message
+    # 2. Retrieve previous conversation BEFORE adding
+    #    the current user message
     # ---------------------------------------------------------
-    if session_id is not None:
+
+    conversation_history = []
+
+    if request.session_id is not None:
+        messages = session_service.get_messages(
+            request.session_id,
+        )
+
+        # Keep only the latest 10 messages.
+        messages = messages[-10:]
+
+        conversation_history = [
+            {
+                "role": message.role,
+                "content": message.content,
+            }
+            for message in messages
+        ]
+
+    # ---------------------------------------------------------
+    # 3. Save current user message
+    # ---------------------------------------------------------
+
+    if request.session_id is not None:
         session_service.add_message(
-            session_id=session_id,
+            session_id=request.session_id,
             role="user",
             content=request.prompt,
         )
@@ -119,17 +124,20 @@ async def chat(
     # ---------------------------------------------------------
     # 4. Run RAG
     # ---------------------------------------------------------
+
     result = await rag_service.answer(
         question=request.prompt,
         top_k=request.top_k,
+        conversation_history=conversation_history,
     )
 
     # ---------------------------------------------------------
-    # 5. Save the assistant's response
+    # 5. Save assistant response
     # ---------------------------------------------------------
-    if session_id is not None:
+
+    if request.session_id is not None:
         session_service.add_message(
-            session_id=session_id,
+            session_id=request.session_id,
             role="assistant",
             content=result.response,
             metadata={
@@ -150,6 +158,12 @@ async def chat(
         )
 
     # ---------------------------------------------------------
-    # 6. Return the RAG response
+    # 6. Return response
     # ---------------------------------------------------------
-    return result
+
+    return ChatResponse(
+        provider=result.provider,
+        model=result.model,
+        response=result.response,
+        sources=result.sources,
+    )

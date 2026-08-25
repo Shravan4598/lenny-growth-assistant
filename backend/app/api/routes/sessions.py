@@ -22,8 +22,14 @@ router = APIRouter(
 def get_session_service(
     db: Session = Depends(get_db),
 ) -> SessionService:
+    """Create the session service."""
+
     return SessionService(db)
 
+
+# ---------------------------------------------------------
+# Create session
+# ---------------------------------------------------------
 
 @router.post(
     "",
@@ -31,8 +37,11 @@ def get_session_service(
 )
 def create_session(
     request: CreateSessionRequest,
-    service: SessionService = Depends(get_session_service),
+    service: SessionService = Depends(
+        get_session_service,
+    ),
 ) -> SessionResponse:
+
     session = service.create_session(
         title=request.title,
         user_metadata=request.user_metadata,
@@ -46,13 +55,20 @@ def create_session(
     )
 
 
+# ---------------------------------------------------------
+# List sessions
+# ---------------------------------------------------------
+
 @router.get(
     "",
     response_model=list[SessionResponse],
 )
 def list_sessions(
-    service: SessionService = Depends(get_session_service),
+    service: SessionService = Depends(
+        get_session_service,
+    ),
 ) -> list[SessionResponse]:
+
     sessions = service.list_sessions()
 
     return [
@@ -66,15 +82,24 @@ def list_sessions(
     ]
 
 
+# ---------------------------------------------------------
+# Get session with messages
+# ---------------------------------------------------------
+
 @router.get(
     "/{session_id}",
     response_model=SessionDetailResponse,
 )
 def get_session(
     session_id: UUID,
-    service: SessionService = Depends(get_session_service),
+    service: SessionService = Depends(
+        get_session_service,
+    ),
 ) -> SessionDetailResponse:
-    session = service.get_session(session_id)
+
+    session = service.get_session(
+        session_id,
+    )
 
     messages = service.get_messages(
         session_id,

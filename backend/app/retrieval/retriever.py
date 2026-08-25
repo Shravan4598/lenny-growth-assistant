@@ -10,7 +10,7 @@ class TranscriptRetriever:
         self,
         vector_store: FaissVectorStore,
         retrieval_embedding_model: str = "all-MiniLM-L6-v2",
-        min_score: float = 0.25,
+        min_score: float = 0.40,
     ) -> None:
         self.vector_store = vector_store
         self.embedding_model = retrieval_embedding_model

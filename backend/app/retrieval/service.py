@@ -18,8 +18,9 @@ class RetrievalService:
         self,
         index_path: str | Path,
         retrieval_embedding_model: str = "all-MiniLM-L6-v2",
-        min_score: float = 0.25,
+        min_score: float = 0.40,
     ) -> None:
+
         self.vector_store = FaissVectorStore(
             index_path=index_path,
         )
@@ -29,6 +30,12 @@ class RetrievalService:
             retrieval_embedding_model=retrieval_embedding_model,
             min_score=min_score,
         )
+
+    @property
+    def embedding_model(self) -> str:
+        """Return the configured embedding model."""
+
+        return self.retriever.embedding_model
 
     def ingest(
         self,
@@ -85,7 +92,10 @@ class RetrievalService:
             raise AppError(
                 status_code=400,
                 code="NO_SEARCHABLE_CHUNKS",
-                message="No searchable transcript chunks were produced.",
+                message=(
+                    "No searchable transcript chunks "
+                    "were produced."
+                ),
             )
 
         embeddings = embed_texts(
@@ -160,5 +170,7 @@ class RetrievalService:
             raise AppError(
                 status_code=503,
                 code="RETRIEVAL_SERVICE_UNAVAILABLE",
-                message="Retrieval service is not available.",
+                message=(
+                    "Retrieval service is not available."
+                ),
             ) from exc

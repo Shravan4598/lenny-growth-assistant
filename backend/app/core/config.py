@@ -101,6 +101,21 @@ class Settings(BaseSettings):
         alias="RETRIEVAL_INDEX_PATH",
     )
 
+    retrieval_top_k: int = Field(
+        default=5,
+        alias="RETRIEVAL_TOP_K",
+    )
+
+    retrieval_min_score: float = Field(
+        default=0.40,
+        alias="RETRIEVAL_MIN_SCORE",
+    )
+
+    embedding_model: str = Field(
+        default="all-MiniLM-L6-v2",
+        alias="EMBEDDING_MODEL",
+    )
+
     # ------------------------------------------------------------------
     # Cloud provider
     # ------------------------------------------------------------------
