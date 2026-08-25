@@ -20,14 +20,14 @@ def get_retrieval_service() -> RetrievalService:
     """
     Create and initialize the retrieval service.
 
-    The FAISS index is loaded once when the dependency is created.
+    The persisted FAISS index is loaded before handling the request.
     """
 
     settings = get_settings()
 
     retrieval_service = RetrievalService(
         index_path=settings.retrieval_index_path,
-        retrieval_embedding_model=settings.retrieval_embedding_model,
+        retrieval_embedding_model=settings.embedding_model,
         min_score=settings.retrieval_min_score,
     )
 
@@ -45,9 +45,7 @@ def get_rag_service(
 
     settings = get_settings()
 
-    llm_provider = create_llm_provider(
-        settings,
-    )
+    llm_provider = create_llm_provider(settings)
 
     return RAGService(
         retrieval_service=retrieval_service,
@@ -75,7 +73,8 @@ async def chat(
     """
     Answer a question using retrieved Lenny knowledge.
 
-    If session_id is provided, the conversation is persisted.
+    If session_id is provided, the conversation is persisted and
+    previous messages are used to resolve follow-up questions.
     """
 
     # ---------------------------------------------------------
@@ -88,11 +87,10 @@ async def chat(
         )
 
     # ---------------------------------------------------------
-    # 2. Retrieve previous conversation BEFORE adding
-    #    the current user message
+    # 2. Retrieve previous conversation
     # ---------------------------------------------------------
 
-    conversation_history = []
+    conversation_history: list[dict[str, str]] = []
 
     if request.session_id is not None:
         messages = session_service.get_messages(

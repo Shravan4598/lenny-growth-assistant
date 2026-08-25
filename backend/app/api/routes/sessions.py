@@ -42,9 +42,9 @@ def create_session(
     ),
 ) -> SessionResponse:
 
+    # Fixed: Removed user_metadata as it does not exist in the DB model
     session = service.create_session(
         title=request.title,
-        user_metadata=request.user_metadata,
     )
 
     return SessionResponse(

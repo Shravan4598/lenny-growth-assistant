@@ -12,8 +12,6 @@ class CreateSessionRequest(BaseModel):
         max_length=255,
     )
 
-    user_metadata: dict | None = None
-
 
 class SessionResponse(BaseModel):
     """Session information returned by the API."""

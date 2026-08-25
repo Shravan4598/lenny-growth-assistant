@@ -23,13 +23,12 @@ class SessionService:
     def create_session(
         self,
         title: str | None = None,
-        user_metadata: dict | None = None,
     ) -> ChatSession:
         """Create a new independent chat session."""
 
+        # Fixed: Removed metadata_json completely
         session = ChatSession(
             title=title,
-            metadata_json=user_metadata,
         )
 
         self.db.add(session)
