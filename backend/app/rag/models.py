@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 
@@ -15,6 +17,8 @@ class ChatRequest(BaseModel):
         ge=1,
         le=10,
     )
+
+    session_id: UUID | None = None
 
 
 class SourceResponse(BaseModel):
