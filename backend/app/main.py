@@ -11,6 +11,10 @@ from app.core.exceptions import (
     unhandled_error_handler,
 )
 from app.core.logging import configure_logging, get_logger
+# Add to your existing imports
+from app.api.routes import agent, artifacts
+
+
 
 
 settings = get_settings()
@@ -123,4 +127,18 @@ app.include_router(
 app.include_router(
     sessions.router,
     prefix=settings.api_prefix,
+)
+
+# Add to your existing app.include_router calls
+app.include_router(
+    agent.router, 
+    prefix="/api/v1/agent", 
+    tags=["Agent"]
+)
+
+
+app.include_router(
+    artifacts.router, 
+    prefix="/api/v1/artifacts", 
+    tags=["Artifacts"]
 )
