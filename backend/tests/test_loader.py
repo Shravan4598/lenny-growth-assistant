@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from app.core.exceptions import AppError
 from app.retrieval.loader import load_transcripts
 
 
@@ -50,5 +51,7 @@ def test_missing_required_field_fails(tmp_path) -> None:
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(AppError) as exc_info:
         load_transcripts(source)
+
+    assert exc_info.value.code == "MISSING_TRANSCRIPT_FIELDS"

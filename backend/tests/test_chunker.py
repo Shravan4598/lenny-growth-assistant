@@ -1,3 +1,6 @@
+import pytest
+
+from app.core.exceptions import AppError
 from app.retrieval.chunker import chunk_transcript
 from app.retrieval.models import Transcript
 
@@ -40,15 +43,11 @@ def test_invalid_overlap_fails() -> None:
         text="some text",
     )
 
-    try:
+    with pytest.raises(AppError) as exc_info:
         chunk_transcript(
             transcript,
             chunk_size=10,
             overlap=10,
         )
-    except ValueError:
-        return
 
-    raise AssertionError(
-        "Expected ValueError for invalid overlap."
-    )
+    assert exc_info.value.code == "INVALID_CHUNK_OVERLAP"
