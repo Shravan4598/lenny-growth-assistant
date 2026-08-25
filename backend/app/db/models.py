@@ -23,6 +23,7 @@ class Base(DeclarativeBase):
 # USER
 # ============================================================
 
+
 class User(Base):
     """Application user metadata."""
 
@@ -56,6 +57,7 @@ class User(Base):
 # ============================================================
 # CHAT SESSION
 # ============================================================
+
 
 class ChatSession(Base):
     """Independent conversation session."""
@@ -112,13 +114,11 @@ class ChatSession(Base):
         cascade="all, delete-orphan",
     )
 
-<<<<<<< HEAD
 
 # ============================================================
 # MESSAGE
 # ============================================================
-=======
->>>>>>> 7e3cdd6aaae08d9d73f044c654428c1c497dd864
+
 
 class Message(Base):
     """Single conversation message."""
@@ -168,6 +168,7 @@ class Message(Base):
 # ============================================================
 # AGENT RUN
 # ============================================================
+
 
 class AgentRun(Base):
     """Represents a single agent or skill execution."""
@@ -227,6 +228,7 @@ class AgentRun(Base):
 # AGENT EVENT
 # ============================================================
 
+
 class AgentEvent(Base):
     """Event generated during an agent run."""
 
@@ -268,6 +270,7 @@ class AgentEvent(Base):
 # ============================================================
 # ARTIFACT
 # ============================================================
+
 
 class Artifact(Base):
     """Generated Markdown or HTML artifact."""
@@ -336,112 +339,6 @@ class Artifact(Base):
         back_populates="artifacts",
     )
 
-<<<<<<< HEAD
     run: Mapped["AgentRun | None"] = relationship(
         back_populates="artifacts",
     )
-=======
-
-class AgentRun(Base):
-    """Record of a single agent execution."""
-
-    __tablename__ = "agent_runs"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4,
-    )
-
-    session_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("sessions.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-
-    skill: Mapped[str] = mapped_column(
-        String(50),
-        nullable=False,
-    )
-
-    input_prompt: Mapped[str] = mapped_column(
-        Text,
-        nullable=False,
-    )
-
-    status: Mapped[str] = mapped_column(
-        String(50),
-        nullable=False,
-        default="running",
-    )
-
-    output: Mapped[str | None] = mapped_column(
-        Text,
-        nullable=True,
-    )
-
-    error_message: Mapped[str | None] = mapped_column(
-        Text,
-        nullable=True,
-    )
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
-
-    completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-    )
-
-    session: Mapped["ChatSession"] = relationship(
-        back_populates="agent_runs",
-    )
-
-    events: Mapped[list["AgentExecutionEvent"]] = relationship(
-        back_populates="agent_run",
-        cascade="all, delete-orphan",
-    )
-
-
-class AgentExecutionEvent(Base):
-    """Event captured during agent execution."""
-
-    __tablename__ = "agent_execution_events"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4,
-    )
-
-    agent_run_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("agent_runs.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-
-    event_type: Mapped[str] = mapped_column(
-        String(50),
-        nullable=False,
-    )
-
-    timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
-
-    metadata_json: Mapped[dict[str, Any]] = mapped_column(
-        JSON,
-        default=dict,
-        server_default=text("'{}'"),
-        nullable=False,
-    )
-
-    agent_run: Mapped["AgentRun"] = relationship(
-        back_populates="events",
-    )
->>>>>>> 7e3cdd6aaae08d9d73f044c654428c1c497dd864

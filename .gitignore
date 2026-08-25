@@ -1,26 +1,77 @@
-# Environment files
+# ==========================================
+# Environment / Secrets
+# ==========================================
 .env
 .envrc
+.env.*
+!.env.example
 
+# ==========================================
 # Python environments
+# ==========================================
 .venv/
 venv/
 env/
 ENV/
 
-# Python cache and test artifacts
+# ==========================================
+# Python cache / test artifacts
+# ==========================================
 __pycache__/
 *.py[cod]
+*.pyo
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
 coverage.xml
 htmlcov/
 
+# ==========================================
+# Node.js
+# ==========================================
+node_modules/
+frontend/node_modules/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==========================================
+# Frontend build output
+# ==========================================
+frontend/dist/
+frontend/build/
+
+# ==========================================
 # Generated retrieval artifacts
+# ==========================================
 data/processed/*
 !data/processed/.gitkeep
+
 *.faiss
+*.index
 *.metadata.json
 
+# ==========================================
 # External knowledge source
+# ==========================================
 data/external/
+
+# ==========================================
+# IDE
+# ==========================================
+.vscode/
+.idea/
+
+# ==========================================
+# OS
+# ==========================================
+.DS_Store
+Thumbs.db
+
+# ==========================================
+# Logs
+# ==========================================
+*.log
