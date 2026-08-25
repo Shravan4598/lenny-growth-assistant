@@ -99,6 +99,11 @@ class ChatSession(Base):
         cascade="all, delete-orphan",
     )
 
+    agent_runs: Mapped[list["AgentRun"]] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
+    )
+
 
 class Message(Base):
     """Single conversation message."""
@@ -195,6 +200,117 @@ class Artifact(Base):
         nullable=False,
     )
 
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
     session: Mapped["ChatSession"] = relationship(
         back_populates="artifacts",
+    )
+
+
+class AgentRun(Base):
+    """Record of a single agent execution."""
+
+    __tablename__ = "agent_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    skill: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+    )
+
+    input_prompt: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="running",
+    )
+
+    output: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    error_message: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    session: Mapped["ChatSession"] = relationship(
+        back_populates="agent_runs",
+    )
+
+    events: Mapped[list["AgentExecutionEvent"]] = relationship(
+        back_populates="agent_run",
+        cascade="all, delete-orphan",
+    )
+
+
+class AgentExecutionEvent(Base):
+    """Event captured during agent execution."""
+
+    __tablename__ = "agent_execution_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+
+    agent_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    event_type: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+    )
+
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON,
+        default=dict,
+        server_default=text("'{}'"),
+        nullable=False,
+    )
+
+    agent_run: Mapped["AgentRun"] = relationship(
+        back_populates="events",
     )
