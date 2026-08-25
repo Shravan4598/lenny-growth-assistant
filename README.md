@@ -2,23 +2,27 @@
 
 A Retrieval-Augmented Generation (RAG) assistant built around Lenny's newsletter and podcast knowledge base.
 
-The application provides a FastAPI backend that combines transcript retrieval, semantic search, conversation history, PostgreSQL persistence, and a local Ollama LLM.
+The application combines semantic retrieval, FAISS vector search, PostgreSQL-backed conversation persistence, and a local Ollama language model to answer product and growth questions using retrieved source material.
 
 ## Features
 
-* Lenny transcript ingestion
-* Transcript cleaning and chunking
-* Sentence Transformer embeddings
-* FAISS vector similarity search
-* Retrieval-Augmented Generation (RAG)
-* Local Ollama LLM integration
-* PostgreSQL persistence
-* Chat sessions
-* Conversation history
-* Health and readiness endpoints
-* Docker Compose deployment
-* Alembic database migrations
-* Configurable retrieval parameters
+- Lenny transcript ingestion
+- Transcript cleaning and chunking
+- Sentence Transformer embeddings
+- FAISS vector similarity search
+- Retrieval-Augmented Generation (RAG)
+- Local Ollama LLM integration
+- PostgreSQL persistence
+- Chat sessions
+- Conversation history
+- Follow-up question support
+- Source metadata returned with responses
+- Unsupported-question fallback
+- Health and readiness endpoints
+- Docker Compose deployment
+- Alembic database migrations
+- Configurable retrieval parameters
+- Automated tests
 
 ---
 
@@ -53,7 +57,7 @@ The application provides a FastAPI backend that combines transcript retrieval, s
                                     ▼
                            ┌─────────────────┐
                            │     Ollama      │
-                           │   qwen2.5:3b    │
+                           │  qwen2.5:1.5b   │
                            └─────────────────┘
 ```
 
@@ -63,7 +67,6 @@ The application provides a FastAPI backend that combines transcript retrieval, s
 
 ```text
 lenny-growth-assistant/
-│
 ├── backend/
 │   ├── app/
 │   │   ├── api/
@@ -72,33 +75,56 @@ lenny-growth-assistant/
 │   │   │   │   ├── health.py
 │   │   │   │   ├── llm.py
 │   │   │   │   └── sessions.py
-│   │   │   │
 │   │   │   ├── schemas/
+│   │   │   │   ├── chat.py
 │   │   │   │   └── sessions.py
-│   │   │   │
 │   │   │   └── services/
 │   │   │       └── session_service.py
-│   │   │
 │   │   ├── core/
 │   │   ├── db/
 │   │   ├── llm/
 │   │   ├── rag/
-│   │   └── retrieval/
-│   │
+│   │   ├── retrieval/
+│   │   └── main.py
 │   ├── alembic/
 │   ├── alembic.ini
+│   ├── tests/
 │   ├── Dockerfile
-│   └── requirements.txt
-│
+│   ├── requirements.txt
+│   └── requirements-dev.txt
 ├── data/
+│   ├── raw/
 │   ├── external/
 │   └── processed/
-│
-├── docker-compose.yml
-├── .env
+├── docs/
+├── scripts/
 ├── .env.example
-└── README.md
+├── .gitignore
+├── docker-compose.yml
+├── LICENSE
+├── README.md
+└── REQUIREMENTS.md
 ```
+
+---
+
+## Technology Stack
+
+| Component            | Technology             |
+| --------------------- | ----------------------- |
+| Backend               | FastAPI                 |
+| Language              | Python 3.12+             |
+| Database              | PostgreSQL               |
+| ORM / Database Layer  | SQLAlchemy / Psycopg     |
+| Migrations            | Alembic                  |
+| Embeddings            | Sentence Transformers    |
+| Embedding Model       | all-MiniLM-L6-v2         |
+| Vector Search         | FAISS                    |
+| LLM Runtime           | Ollama                   |
+| Default LLM           | qwen2.5:1.5b             |
+| Containerization      | Docker                   |
+| Orchestration         | Docker Compose           |
+| Testing               | Pytest                   |
 
 ---
 
@@ -106,34 +132,18 @@ lenny-growth-assistant/
 
 Before running the project, install or configure the following:
 
-* Python 3.12+
-* Docker Desktop
-* Docker Compose
-* Ollama
-* `qwen2.5:3b` Ollama model
+- Python 3.12+
+- Docker Desktop
+- Docker Compose
+- Ollama
+- `qwen2.5:1.5b` Ollama model
 
-### Verify Python
+Verify the installations:
 
 ```powershell
 python --version
-```
-
-Expected:
-
-```text
-Python 3.12.x
-```
-
-### Verify Docker
-
-```powershell
 docker --version
 docker compose version
-```
-
-### Verify Ollama
-
-```powershell
 ollama --version
 ```
 
@@ -141,17 +151,15 @@ ollama --version
 
 # Ollama Setup
 
-The application uses Ollama as the local LLM provider.
+The project uses Ollama as the local LLM provider. Make sure Ollama is running before starting the application.
 
-Make sure Ollama is running before starting the application.
-
-Pull the required model:
+Pull the configured model:
 
 ```powershell
-ollama pull qwen2.5:3b
+ollama pull qwen2.5:1.5b
 ```
 
-Verify that the model is available:
+Verify that it is available:
 
 ```powershell
 ollama list
@@ -160,15 +168,15 @@ ollama list
 You should see:
 
 ```text
-qwen2.5:3b
+qwen2.5:1.5b
 ```
 
-You can also test Ollama directly:
+You can test Ollama directly:
 
 ```powershell
 $body = @{
-    model = "qwen2.5:3b"
-    prompt = "Explain product-market fit in 3 sentences."
+    model = "qwen2.5:1.5b"
+    prompt = "Explain product-market fit in three sentences."
     stream = $false
 } | ConvertTo-Json -Compress
 
@@ -183,15 +191,16 @@ Invoke-RestMethod `
 
 # Environment Variables
 
-Create a `.env` file in the project root.
+Create a `.env` file in the project root using `.env.example` as a template.
 
-You can use `.env.example` as the template.
+Example configuration:
 
 ```env
 APP_NAME=The Lenny Growth Assistant
 ENVIRONMENT=development
 DEBUG=false
 LOG_LEVEL=INFO
+
 API_PREFIX=/api/v1
 
 DATABASE_URL=postgresql+psycopg://postgres:postgres@postgres:5432/lenny_growth
@@ -200,113 +209,88 @@ LLM_PROVIDER=ollama
 LLM_TIMEOUT_SECONDS=180
 
 OLLAMA_BASE_URL=http://host.docker.internal:11434
-OLLAMA_MODEL=qwen2.5:3b
+OLLAMA_MODEL=qwen2.5:1.5b
 
 RETRIEVAL_INDEX_PATH=data/processed/lenny.faiss
 EMBEDDING_MODEL=all-MiniLM-L6-v2
+
 RETRIEVAL_TOP_K=5
-RETRIEVAL_MIN_SCORE=0.25
+RETRIEVAL_MIN_SCORE=0.40
 ```
 
-### Important
+## Important Docker Networking Note
 
-When the backend runs inside Docker and Ollama runs on the Windows host, use:
+When the backend runs inside Docker and Ollama runs on the host machine, use:
 
 ```env
 OLLAMA_BASE_URL=http://host.docker.internal:11434
 ```
 
-Do **not** use:
+Do not use:
 
 ```env
 OLLAMA_BASE_URL=http://localhost:11434
 ```
 
-inside the Dockerized backend because `localhost` refers to the backend container itself.
+Inside the backend container, `localhost` refers to the container itself, not the host machine.
 
 ---
 
-# Start the Application
+# Quick Start
 
-Open PowerShell in the project root:
+## 1. Pull the Ollama model
 
 ```powershell
-cd C:\Users\shrav\Desktop\lenny-growth-assistant
+ollama pull qwen2.5:1.5b
 ```
 
-Start the application:
+## 2. Configure environment variables
+
+Create `.env` from `.env.example` and configure the required values.
+
+## 3. Build and start the services
+
+From the project root:
 
 ```powershell
 docker compose up -d --build
 ```
 
-Check container status:
+## 4. Check container status
 
 ```powershell
 docker compose ps
 ```
 
-Expected services should include the backend and PostgreSQL containers.
+Expected services:
 
----
-
-# View Backend Logs
-
-To view the latest backend logs:
-
-```powershell
-docker compose logs backend --tail=100
+```text
+lenny-growth-backend
+lenny-growth-postgres
 ```
 
-To follow logs continuously:
+Both services should become healthy.
 
-```powershell
-docker compose logs -f backend
-```
-
-Press `Ctrl+C` to stop following the logs.
-
----
-
-# Stop the Application
-
-Stop the containers:
-
-```powershell
-docker compose down
-```
-
-To stop the containers and remove the PostgreSQL volume as well:
-
-```powershell
-docker compose down -v
-```
-
-> Warning: removing the volume deletes the PostgreSQL data stored in that Docker volume.
-
----
-
-# Health Check
-
-The backend exposes a health endpoint.
-
-Run:
+## 5. Check application health
 
 ```powershell
 Invoke-RestMethod `
     -Uri "http://localhost:8000/health" `
-    -Method Get
+    -Method Get |
+    ConvertTo-Json -Depth 10
 ```
 
-The endpoint should return a successful response indicating that the API is running.
+Expected response:
 
----
+```json
+{
+  "status": "ok",
+  "application": "The Lenny Growth Assistant",
+  "environment": "development"
+}
+```
 
-# Readiness Check
-
-The readiness endpoint checks whether the application dependencies are available.
-
-Run:
+## 6. Check application readiness
 
 ```powershell
 Invoke-RestMethod `
@@ -315,7 +299,7 @@ Invoke-RestMethod `
     ConvertTo-Json -Depth 10
 ```
 
-A successful response should look similar to:
+Expected response:
 
 ```json
 {
@@ -324,66 +308,43 @@ A successful response should look similar to:
   "environment": "development",
   "database": "available",
   "llm_provider": "ollama",
-  "model": "qwen2.5:3b"
+  "model": "qwen2.5:1.5b"
 }
 ```
 
----
-
-# API
-
-The API base URL is:
+## 7. Open API documentation
 
 ```text
-http://localhost:8000/api/v1
+http://localhost:8000/docs
 ```
 
-## Create a Session
-
-Create a new conversation session:
+## 8. Create a session
 
 ```powershell
 $body = @{
     title = "Product Strategy Chat"
-    user_metadata = @{
-        role = "product_manager"
-    }
 } | ConvertTo-Json -Compress
 
-Invoke-RestMethod `
+$session = Invoke-RestMethod `
     -Uri "http://localhost:8000/api/v1/sessions" `
     -Method Post `
     -ContentType "application/json" `
-    -Body $body |
-    ConvertTo-Json -Depth 10
+    -Body $body
+
+$session | ConvertTo-Json -Depth 10
 ```
 
-Save the returned `session_id`. It is required when sending chat messages.
-
----
-
-## List Sessions
-
-Retrieve existing sessions:
+Save the returned session ID:
 
 ```powershell
-Invoke-RestMethod `
-    -Uri "http://localhost:8000/api/v1/sessions" `
-    -Method Get |
-    ConvertTo-Json -Depth 10
+$sessionId = $session.id
 ```
 
----
-
-## Chat
-
-Send a question to the RAG assistant.
-
-Replace `YOUR_SESSION_ID` with the ID returned when creating a session.
+## 9. Send a question
 
 ```powershell
 $body = @{
-    session_id = "YOUR_SESSION_ID"
+    session_id = $sessionId
     prompt = "What is product-market fit?"
     top_k = 3
 } | ConvertTo-Json -Compress
@@ -396,160 +357,204 @@ Invoke-RestMethod `
     ConvertTo-Json -Depth 10
 ```
 
-The request performs the following operations:
+---
+
+# API
+
+The API base URL is:
 
 ```text
-User Question
-      │
-      ▼
-Generate Query Embedding
-      │
-      ▼
-Search FAISS Index
-      │
-      ▼
-Retrieve Relevant Chunks
-      │
-      ▼
-Build RAG Prompt
-      │
-      ▼
-Send Prompt to Ollama
-      │
-      ▼
-Generate Answer
-      │
-      ▼
-Store Conversation
+http://localhost:8000/api/v1
+```
+
+Interactive documentation is available at:
+
+```text
+http://localhost:8000/docs
+```
+
+ReDoc documentation:
+
+```text
+http://localhost:8000/redoc
+```
+
+OpenAPI schema:
+
+```text
+http://localhost:8000/openapi.json
 ```
 
 ---
 
-## Get Conversation History
+## Health Check
 
-Retrieve the conversation associated with a session:
+### GET /health
 
 ```powershell
 Invoke-RestMethod `
-    -Uri "http://localhost:8000/api/v1/sessions/YOUR_SESSION_ID" `
+    -Uri "http://localhost:8000/health" `
+    -Method Get
+```
+
+The endpoint returns a successful response indicating that the API is running.
+
+---
+
+## Readiness Check
+
+### GET /health/ready
+
+```powershell
+Invoke-RestMethod `
+    -Uri "http://localhost:8000/health/ready" `
+    -Method Get |
+    ConvertTo-Json -Depth 10
+```
+
+The readiness check verifies:
+
+- Application availability
+- Database availability
+- Configured LLM provider
+- Active model
+
+---
+
+## LLM Status
+
+### GET /api/v1/llm/status
+
+```powershell
+Invoke-RestMethod `
+    -Uri "http://localhost:8000/api/v1/llm/status" `
+    -Method Get |
+    ConvertTo-Json -Depth 10
+```
+
+Example response:
+
+```json
+{
+  "provider": "ollama",
+  "model": "qwen2.5:1.5b",
+  "healthy": true,
+  "detail": "Ollama service and configured model are available."
+}
+```
+
+---
+
+## Direct LLM Generation
+
+### POST /api/v1/llm/generate
+
+```powershell
+$body = @{
+    prompt = "Explain product-market fit in one paragraph."
+    temperature = 0.2
+    max_tokens = 200
+} | ConvertTo-Json -Compress
+
+Invoke-RestMethod `
+    -Uri "http://localhost:8000/api/v1/llm/generate" `
+    -Method Post `
+    -ContentType "application/json" `
+    -Body $body |
+    ConvertTo-Json -Depth 10
+```
+
+---
+
+# Chat Sessions
+
+## Create a Session
+
+### POST /api/v1/sessions
+
+```powershell
+$body = @{
+    title = "Product Strategy Chat"
+} | ConvertTo-Json -Compress
+
+$session = Invoke-RestMethod `
+    -Uri "http://localhost:8000/api/v1/sessions" `
+    -Method Post `
+    -ContentType "application/json" `
+    -Body $body
+
+$session | ConvertTo-Json -Depth 10
+```
+
+Save the returned `session_id`. It is required when sending chat messages.
+
+```powershell
+$sessionId = $session.id
+```
+
+---
+
+## List Sessions
+
+### GET /api/v1/sessions
+
+```powershell
+Invoke-RestMethod `
+    -Uri "http://localhost:8000/api/v1/sessions" `
     -Method Get |
     ConvertTo-Json -Depth 10
 ```
 
 ---
 
-# Database
+## Get Session History
 
-PostgreSQL runs as a Docker service.
+### GET /api/v1/sessions/{session_id}
 
-### Database Configuration
-
-```text
-Host:     postgres
-Port:     5432
-Database: lenny_growth
-User:     postgres
+```powershell
+Invoke-RestMethod `
+    -Uri "http://localhost:8000/api/v1/sessions/$sessionId" `
+    -Method Get |
+    ConvertTo-Json -Depth 10
 ```
 
-The application connects using:
-
-```text
-postgresql+psycopg://postgres:postgres@postgres:5432/lenny_growth
-```
+The response includes the persisted conversation history.
 
 ---
 
-# Database Tables
+# RAG Chat
 
-The application uses PostgreSQL for persistent application data.
-
-Current tables include:
-
-```text
-users
-sessions
-messages
-artifacts
-alembic_version
-```
-
----
-
-# Inspect Database Tables
-
-Run:
+### POST /api/v1/chat
 
 ```powershell
-docker compose exec postgres `
-    psql -U postgres -d lenny_growth -c "\dt"
+$body = @{
+    prompt = "What is product-market fit?"
+    top_k = 3
+    session_id = $sessionId
+} | ConvertTo-Json -Compress
+
+$response = Invoke-RestMethod `
+    -Uri "http://localhost:8000/api/v1/chat" `
+    -Method Post `
+    -ContentType "application/json" `
+    -Body $body
+
+$response | ConvertTo-Json -Depth 10
 ```
 
----
+The response contains:
 
-# Inspect Database
-
-Open a PostgreSQL shell:
-
-```powershell
-docker compose exec postgres `
-    psql -U postgres -d lenny_growth
-```
-
-Inside PostgreSQL, useful commands include:
-
-```sql
-\dt
-```
-
-List tables.
-
-```sql
-\d sessions
-```
-
-Describe the `sessions` table.
-
-```sql
-\d messages
-```
-
-Describe the `messages` table.
-
-Exit PostgreSQL:
-
-```sql
-\q
-```
-
----
-
-# Database Migrations
-
-The project uses Alembic for database migrations.
-
-Check the current migration:
-
-```powershell
-docker compose exec backend alembic current
-```
-
-View migration history:
-
-```powershell
-docker compose exec backend alembic history
-```
-
-Run pending migrations:
-
-```powershell
-docker compose exec backend alembic upgrade head
-```
+- Active LLM provider
+- Active model
+- Generated answer
+- Retrieved source metadata
+- Retrieval scores
 
 ---
 
 # RAG Pipeline
 
-The RAG pipeline is responsible for retrieving relevant information from Lenny's knowledge base before generating an answer.
+The request flow is:
 
 ```text
                   User Question
@@ -567,13 +572,24 @@ The RAG pipeline is responsible for retrieving relevant information from Lenny's
                        │
                        ▼
              Prompt Construction
+        (includes conversation context)
                        │
                        ▼
                     Ollama
                        │
                        ▼
                Generated Answer
+                       │
+                       ▼
+         Persist Conversation to PostgreSQL
+                       │
+                       ▼
+             Return Answer and Sources
 ```
+
+The application is designed to answer using retrieved knowledge rather than relying exclusively on the LLM's general knowledge.
+
+When the retrieved evidence is insufficient, the assistant returns an explicit fallback instead of fabricating an answer.
 
 ## Components
 
@@ -602,14 +618,14 @@ Ollama
 ### Model
 
 ```text
-qwen2.5:3b
+qwen2.5:1.5b
 ```
 
 ### Retrieval Configuration
 
 ```env
 RETRIEVAL_TOP_K=5
-RETRIEVAL_MIN_SCORE=0.25
+RETRIEVAL_MIN_SCORE=0.40
 ```
 
 `RETRIEVAL_TOP_K` controls how many relevant chunks are retrieved.
@@ -618,27 +634,30 @@ RETRIEVAL_MIN_SCORE=0.25
 
 ---
 
-# Transcript Processing
+# Knowledge Base Processing
 
-The knowledge base follows a preprocessing pipeline:
+The retrieval pipeline processes source material as follows:
 
 ```text
-Raw Lenny Transcripts
-        │
-        ▼
-Transcript Cleaning
-        │
-        ▼
-Text Chunking
-        │
-        ▼
+Raw Lenny Content
+       │
+       ▼
+Content Loading
+       │
+       ▼
+Text Cleaning
+       │
+       ▼
+Chunking
+       │
+       ▼
 Embedding Generation
-        │
-        ▼
-FAISS Index
-        │
-        ▼
-Ready for Retrieval
+       │
+       ▼
+FAISS Index Creation
+       │
+       ▼
+Semantic Retrieval
 ```
 
 Processed retrieval artifacts are stored under:
@@ -647,7 +666,7 @@ Processed retrieval artifacts are stored under:
 data/processed/
 ```
 
-The configured FAISS index path is:
+The configured index path is:
 
 ```text
 data/processed/lenny.faiss
@@ -655,128 +674,161 @@ data/processed/lenny.faiss
 
 ---
 
-# API Documentation
+# Database
 
-When the backend is running, FastAPI provides interactive API documentation.
+PostgreSQL runs as a Docker service.
 
-### Swagger UI
-
-Open:
+Default configuration:
 
 ```text
-http://localhost:8000/docs
+Host:     postgres
+Port:     5432
+Database: lenny_growth
+User:     postgres
 ```
 
-### ReDoc
-
-Open:
+The application connects using:
 
 ```text
-http://localhost:8000/redoc
+postgresql+psycopg://postgres:postgres@postgres:5432/lenny_growth
 ```
 
-These interfaces can be used to inspect and test the API endpoints without PowerShell.
+The application uses Alembic for schema migrations.
+
+## Database Tables
+
+Current tables include:
+
+```text
+users
+sessions
+messages
+artifacts
+alembic_version
+```
+
+## Inspect Database Tables
+
+```powershell
+docker compose exec postgres `
+    psql -U postgres -d lenny_growth -c "\dt"
+```
+
+## Open a PostgreSQL Shell
+
+```powershell
+docker compose exec postgres `
+    psql -U postgres -d lenny_growth
+```
+
+Useful commands:
+
+```sql
+\dt
+\d sessions
+\d messages
+\q
+```
 
 ---
 
-# Troubleshooting
+# Database Migrations
 
-## Backend container is not running
+Check the current migration:
 
-Check:
+```powershell
+docker compose exec backend alembic current
+```
+
+View migration history:
+
+```powershell
+docker compose exec backend alembic history
+```
+
+Apply migrations:
+
+```powershell
+docker compose exec backend alembic upgrade head
+```
+
+The backend startup process also applies migrations before starting the application.
+
+---
+
+# Testing
+
+The project includes automated tests for core components and application behavior.
+
+Run tests locally:
+
+```powershell
+cd backend
+pytest -q
+cd ..
+```
+
+Current verified result:
+
+```text
+11 passed
+```
+
+Note: `pytest` is included in the development environment and may not be installed in the production Docker image.
+
+---
+
+# Docker Operations
+
+## Start
+
+```powershell
+docker compose up -d --build
+```
+
+## Check status
 
 ```powershell
 docker compose ps
 ```
 
-Then inspect the logs:
+## View backend logs
 
 ```powershell
-docker compose logs backend --tail=200
+docker compose logs backend --tail=100
 ```
 
----
-
-## PostgreSQL is unavailable
-
-Check PostgreSQL logs:
+## Follow backend logs
 
 ```powershell
-docker compose logs postgres --tail=200
+docker compose logs -f backend
 ```
 
-Restart the services:
+## Restart backend
 
 ```powershell
-docker compose restart
+docker compose restart backend
 ```
 
----
-
-## Ollama connection error
-
-First check whether Ollama is running:
+## Inspect all logs
 
 ```powershell
-ollama list
+docker compose logs --tail=200
 ```
 
-Then test the Ollama API:
+## Stop services
 
 ```powershell
-Invoke-RestMethod `
-    -Uri "http://localhost:11434/api/tags" `
-    -Method Get
+docker compose down
 ```
 
-Make sure the required model exists:
+## Remove services and database volume
 
 ```powershell
-ollama list
+docker compose down -v
 ```
 
-If it is missing:
-
-```powershell
-ollama pull qwen2.5:3b
-```
-
-If the backend is running inside Docker, verify that `.env` contains:
-
-```env
-OLLAMA_BASE_URL=http://host.docker.internal:11434
-```
-
----
-
-## Check backend can reach Ollama
-
-Run:
-
-```powershell
-docker compose exec backend `
-    python -c "import urllib.request; print(urllib.request.urlopen('http://host.docker.internal:11434/api/tags').read().decode())"
-```
-
-If this succeeds, the Docker container can reach Ollama running on the host machine.
-
----
-
-## FAISS index not found
-
-Check whether the index exists:
-
-```powershell
-Get-ChildItem .\data\processed\
-```
-
-The configured path is:
-
-```text
-data/processed/lenny.faiss
-```
-
-If the index has not been generated yet, run the project's transcript ingestion/indexing process before testing RAG queries.
+Warning: removing the volume deletes the PostgreSQL data stored in Docker.
 
 ---
 
@@ -794,133 +846,138 @@ To restart only the backend:
 docker compose restart backend
 ```
 
-To inspect all logs:
-
-```powershell
-docker compose logs --tail=200
-```
-
 ---
 
-# Quick Start
+# Troubleshooting
 
-For a clean setup, the basic workflow is:
+## Backend is not running
 
-### 1. Start Ollama
-
-Make sure Ollama is running.
-
-### 2. Pull the model
-
-```powershell
-ollama pull qwen2.5:3b
-```
-
-### 3. Configure environment variables
-
-Create `.env`:
-
-```env
-OLLAMA_BASE_URL=http://host.docker.internal:11434
-OLLAMA_MODEL=qwen2.5:3b
-```
-
-### 4. Start Docker services
-
-```powershell
-docker compose up -d --build
-```
-
-### 5. Check containers
+Check:
 
 ```powershell
 docker compose ps
 ```
 
-### 6. Check readiness
+Then inspect:
 
 ```powershell
-Invoke-RestMethod `
-    -Uri "http://localhost:8000/health/ready" `
-    -Method Get |
-    ConvertTo-Json -Depth 10
-```
-
-### 7. Open API documentation
-
-```text
-http://localhost:8000/docs
-```
-
-### 8. Create a session
-
-```powershell
-$body = @{
-    title = "Product Strategy Chat"
-    user_metadata = @{
-        role = "product_manager"
-    }
-} | ConvertTo-Json -Compress
-
-$response = Invoke-RestMethod `
-    -Uri "http://localhost:8000/api/v1/sessions" `
-    -Method Post `
-    -ContentType "application/json" `
-    -Body $body
-
-$response | ConvertTo-Json -Depth 10
-```
-
-### 9. Send a question
-
-Use the returned `session_id`:
-
-```powershell
-$body = @{
-    session_id = "YOUR_SESSION_ID"
-    prompt = "What is product-market fit?"
-    top_k = 3
-} | ConvertTo-Json -Compress
-
-Invoke-RestMethod `
-    -Uri "http://localhost:8000/api/v1/chat" `
-    -Method Post `
-    -ContentType "application/json" `
-    -Body $body |
-    ConvertTo-Json -Depth 10
+docker compose logs backend --tail=200
 ```
 
 ---
 
-# Technology Stack
+## PostgreSQL is unavailable
 
-| Component            | Technology            |
-| -------------------- | --------------------- |
-| Backend              | FastAPI               |
-| Language             | Python 3.12+          |
-| Database             | PostgreSQL            |
-| ORM / Database Layer | SQLAlchemy / Psycopg  |
-| Migrations           | Alembic               |
-| Embeddings           | Sentence Transformers |
-| Embedding Model      | `all-MiniLM-L6-v2`    |
-| Vector Search        | FAISS                 |
-| LLM Runtime          | Ollama                |
-| LLM                  | `qwen2.5:3b`          |
-| Containerization     | Docker                |
-| Orchestration        | Docker Compose        |
+Check:
+
+```powershell
+docker compose logs postgres --tail=200
+```
+
+Restart services:
+
+```powershell
+docker compose restart
+```
+
+---
+
+## Ollama connection error
+
+Check available models:
+
+```powershell
+ollama list
+```
+
+Check the Ollama API:
+
+```powershell
+Invoke-RestMethod `
+    -Uri "http://localhost:11434/api/tags" `
+    -Method Get
+```
+
+If the configured model is missing:
+
+```powershell
+ollama pull qwen2.5:1.5b
+```
+
+For Dockerized backend communication with Ollama running on the host, verify `.env` contains:
+
+```env
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+```
+
+## Check backend can reach Ollama
+
+```powershell
+docker compose exec backend `
+    python -c "import urllib.request; print(urllib.request.urlopen('http://host.docker.internal:11434/api/tags').read().decode())"
+```
+
+If this succeeds, the Docker container can reach Ollama running on the host machine.
+
+---
+
+## FAISS Index Not Found
+
+Check the processed data directory:
+
+```powershell
+Get-ChildItem .\data\processed\
+```
+
+The configured index is:
+
+```text
+data/processed/lenny.faiss
+```
+
+If the index does not exist, run the project's ingestion/indexing process before testing RAG queries.
+
+---
+
+# Final Verification Checklist
+
+Before submission, verify:
+
+```text
+[ ] docker compose config
+[ ] docker compose up -d --build
+[ ] docker compose ps
+[ ] GET /health
+[ ] GET /health/ready
+[ ] GET /api/v1/llm/status
+[ ] POST /api/v1/llm/generate
+[ ] POST /api/v1/sessions
+[ ] POST /api/v1/chat
+[ ] GET /api/v1/sessions
+[ ] GET /api/v1/sessions/{session_id}
+[ ] Unsupported-question fallback
+[ ] pytest -q
+[ ] git status
+```
 
 ---
 
 # Project Goal
 
-The goal of the Lenny Growth Assistant is to provide a conversational interface for answering product and growth questions using information retrieved from Lenny's transcript knowledge base.
+The goal of the Lenny Growth Assistant is to provide a conversational interface for answering product and growth questions using retrieved knowledge from Lenny's newsletter and podcast content.
 
-Instead of relying only on the language model's general knowledge, the application retrieves relevant transcript chunks and provides them as context to the LLM.
+Instead of sending a question directly to a language model, the application retrieves relevant transcript chunks, adds them to a grounded prompt, and generates a response based on that retrieved context.
 
-This architecture helps produce answers that are grounded in the project's source material.
+This architecture provides a foundation for:
+
+- Source-grounded answers
+- Semantic knowledge retrieval
+- Conversation persistence
+- Follow-up questions
+- Explicit handling of insufficient evidence
 
 ---
 
 # License
 
-This project is developed as part of a technical assignment and is intended for evaluation and educational purposes.
+This project was developed as part of a technical assignment and is intended for evaluation and educational purposes.
