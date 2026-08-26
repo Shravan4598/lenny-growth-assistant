@@ -8,18 +8,14 @@ def build_rag_prompt(
 ) -> str:
     """
     Build a grounded RAG prompt.
-
-    Args:
-        question: User's question
-        context: Retrieved transcript context
-        conversation_history: Previous conversation
-
-    Returns:
-        Formatted prompt for the LLM
     """
 
     history_section = ""
-    if conversation_history and conversation_history != "No previous conversation.":
+
+    if (
+        conversation_history
+        and conversation_history != "No previous conversation."
+    ):
         history_section = f"""
 Previous Conversation:
 {conversation_history}
@@ -32,14 +28,19 @@ Previous Conversation:
 Transcript Context:
 {context}
 
-User Question: {question}
+User Question:
+{question}
 
 Instructions:
 1. Answer the user's question using ONLY the provided transcript context.
-2. If the context does not contain relevant information, respond: "I couldn't find enough information in the available Lenny material to answer that question."
-3. Be specific and cite sources when relevant.
-4. Keep your response concise and actionable.
-5. Do NOT make up information or claim transcript content that is not shown above.
+2. If the context does not contain enough relevant information, say:
+   "I couldn't find enough information in the available Lenny material to answer that question."
+3. Clearly identify relevant guests, episodes, newsletters, or sources when possible.
+4. Be specific and actionable.
+5. Do NOT invent information.
+6. Do NOT claim that a guest said something unless the provided context supports it.
+7. Prefer synthesis across multiple relevant sources when appropriate.
+8. Keep the response concise enough to be useful.
 
 Answer:
 """
@@ -51,53 +52,122 @@ def build_ship30_prompt(
     conversation_history: str | None = None,
 ) -> str:
     """
-    Build a Ship 30 plan generation prompt.
+    Build a grounded Ship 30 for 30-style essay prompt.
 
-    Args:
-        topic: The topic or idea for the plan
-        context: Retrieved transcript knowledge
-        conversation_history: Previous conversation
-
-    Returns:
-        Formatted prompt for the LLM
+    The output is intentionally designed as an approximately
+    1,250-word essay rather than a literal 30-day execution plan.
     """
 
     history_section = ""
-    if conversation_history and conversation_history != "No previous conversation.":
+
+    if (
+        conversation_history
+        and conversation_history != "No previous conversation."
+    ):
         history_section = f"""
 Previous Discussion:
 {conversation_history}
 
 """
 
-    return f"""You are a content strategy and execution planning expert specializing in product and growth topics.
+    return f"""You are the Ship 30 for 30 writing skill inside
+The Lenny Growth Assistant.
 
-Create a structured "Ship 30 for 30" execution plan for the following topic:
+Your job is to transform grounded insights from Lenny's Podcast
+and Newsletter into a high-quality, approximately 1,250-word
+Ship 30 for 30-style essay.
 
-Topic: {topic}
+TOPIC:
+{topic}
 
 {history_section}
-Related Knowledge from Lenny's Podcast/Newsletter:
+
+KNOWLEDGE BASE:
+The following material was retrieved from Lenny's Podcast and
+Newsletter knowledge base.
+
 {context}
 
-Generate a comprehensive 30-day plan with the following structure:
+IMPORTANT GROUNDING RULES:
 
-For each day (Day 1 through Day 30):
-- **Day [N]**
-  - **Objective:** What will be accomplished today
-  - **Action:** Specific steps to take
-  - **Deliverable:** Concrete output (blog post, memo, framework, etc.)
+1. Use ONLY the provided knowledge base for factual claims
+   about Lenny's guests, episodes, newsletters, frameworks,
+   advice, or experiences.
 
-Requirements:
-1. Each day should be distinct and build on previous days
-2. The plan should be grounded in the provided transcript knowledge
-3. Include a strong hook in the early days (Days 1-3)
-4. Build toward a climactic or significant deliverable around Day 15
-5. Include a strong conclusion/takeaway in the final days (Days 28-30)
-6. Use the provided context to make recommendations specific to Lenny's insights
-7. Make it actionable and specific
+2. Do not invent quotes.
 
-Start the plan immediately with "Day 1" without additional preamble.
+3. Do not attribute an idea to a guest unless the retrieved
+   context supports that attribution.
+
+4. You may synthesize multiple retrieved sources, but clearly
+   distinguish synthesis from direct claims.
+
+5. If the knowledge base does not provide enough evidence for
+   an important claim, omit the claim rather than inventing it.
+
+WRITING REQUIREMENTS:
+
+1. Write approximately 1,250 words.
+
+2. Start with a strong, curiosity-driven hook.
+
+3. Do not include a generic introduction such as:
+   "In this essay, we will discuss..."
+
+4. Establish a clear narrative progression:
+   Hook → problem → insight → evidence → synthesis →
+   practical application → takeaway.
+
+5. Use useful headings.
+
+6. Use short paragraphs for readability.
+
+7. Use bullet points where they improve clarity.
+
+8. Use selective **bold emphasis** for important ideas.
+
+9. Include specific examples grounded in the retrieved material.
+
+10. Explain why the ideas matter to product managers,
+    founders, growth teams, or product leaders.
+
+11. Include a practical section explaining how the reader
+    can apply the ideas.
+
+12. End with a specific and memorable takeaway.
+
+13. Do not create a literal Day 1 through Day 30 schedule.
+    This is an essay inspired by the Ship 30 for 30 writing
+    style, not a 30-day calendar.
+
+14. Do not mention that you are an AI.
+
+15. Do not mention the prompt, retrieval system, context,
+    or knowledge base in the essay.
+
+16. Do not add a bibliography or fabricated links.
+
+SOURCE ATTRIBUTION:
+
+When discussing a specific guest or source, naturally
+attribute the insight, for example:
+
+"Matt MacInnis argues that..."
+
+or:
+
+"One recurring idea across Lenny's conversations is..."
+
+Only make such attribution when supported by the supplied
+context.
+
+OUTPUT FORMAT:
+
+Return ONLY the finished Markdown essay.
+
+Begin immediately with the title.
+
+Do not add a preamble.
 """
 
 
@@ -108,14 +178,6 @@ def build_artifact_prompt(
 ) -> str:
     """
     Build an artifact generation prompt.
-
-    Args:
-        request: What the user wants generated
-        artifact_type: Type of artifact (markdown, html, etc.)
-        context: Retrieved knowledge
-
-    Returns:
-        Formatted prompt for the LLM
     """
 
     format_instructions = ""
@@ -123,34 +185,49 @@ def build_artifact_prompt(
     if artifact_type == "html":
         format_instructions = """
 Format the output as clean, production-quality HTML/CSS.
-Include embedded CSS in a <style> tag.
-Make it visually appealing and professional.
-Ensure it is self-contained (no external dependencies).
+
+Requirements:
+- Include embedded CSS in a <style> tag.
+- Make it visually appealing and professional.
+- Make it self-contained.
+- Do not use external dependencies.
+- Do not include JavaScript.
 """
 
     elif artifact_type == "markdown":
         format_instructions = """
 Format the output as well-structured Markdown.
-Use clear headings, bullet points, and formatting.
-Make it readable and scannable.
+
+Requirements:
+- Use clear headings.
+- Use bullet points when appropriate.
+- Use bold emphasis selectively.
+- Make the content readable and scannable.
 """
 
-    return f"""You are an expert in creating professional documents and frameworks grounded in product and growth expertise.
+    return f"""You are an expert in creating professional documents
+and frameworks grounded in product and growth expertise.
 
-User Request: {request}
+USER REQUEST:
+{request}
 
-Format: {artifact_type.upper()}
+FORMAT:
+{artifact_type.upper()}
+
 {format_instructions}
 
-Related Knowledge from Lenny's Podcast/Newsletter:
+RELATED KNOWLEDGE FROM LENNY'S PODCAST/NEWSLETTER:
 {context}
 
-Generate the requested artifact with the following principles:
-1. Professional, clear, and actionable
-2. Grounded in the provided knowledge when possible
-3. Well-structured with clear hierarchy
-4. Specific and practical, not generic
-5. Appropriate length for the artifact type (300-2000 words)
+Generate the requested artifact.
 
-Do NOT include explanatory preamble. Output the artifact directly.
+Principles:
+1. Professional, clear, and actionable.
+2. Grounded in the provided knowledge when possible.
+3. Well-structured with clear hierarchy.
+4. Specific and practical, not generic.
+5. Appropriate length for the requested artifact.
+6. Never invent transcript claims.
+7. Do not include explanatory preamble.
+8. Output the artifact directly.
 """

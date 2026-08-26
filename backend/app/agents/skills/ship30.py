@@ -1,4 +1,4 @@
-"""Ship 30 Skill — Generate a 30-day writing/execution plan."""
+"""Ship 30 Skill — Generate a grounded Ship 30 for 30-style essay."""
 
 from datetime import datetime
 from typing import Any
@@ -18,17 +18,28 @@ logger = structlog.get_logger(__name__)
 
 class Ship30Skill:
     """
-    Skill for generating a structured 30-day writing/execution plan.
+    Dedicated skill for generating a grounded Ship 30 for 30-style essay.
 
-    The output is a detailed daily breakdown with objectives,
-    actions, and deliverables grounded in Lenny's knowledge.
+    The skill:
+    1. Retrieves relevant Lenny content.
+    2. Builds a structured writing prompt.
+    3. Generates approximately 1,250 words.
+    4. Returns source metadata.
+    5. Emits agent lifecycle events.
     """
 
-    # Maximum number of daily entries to validate
-    EXPECTED_DAYS = 30
+    # Approximately 1,250 words requires more than 2,000 tokens
+    # in many cases, especially with Markdown headings.
+    MAX_OUTPUT_TOKENS = 3000
 
-    # Maximum output tokens for the plan
-    MAX_OUTPUT_TOKENS = 2000
+    # Number of chunks used for retrieval.
+    RETRIEVAL_TOP_K = 10
+
+    # Number of retrieved chunks actually inserted into prompt.
+    MAX_CONTEXT_CHUNKS = 7
+
+    # Maximum characters taken from each chunk.
+    MAX_CHARS_PER_CHUNK = 1500
 
     def __init__(
         self,
@@ -47,25 +58,34 @@ class Ship30Skill:
         agent_run_id: UUID | None = None,
     ) -> dict[str, Any]:
         """
-        Generate a Ship 30 plan.
+        Generate a grounded Ship 30 for 30-style essay.
 
         Args:
-            session_id: Chat session ID
-            prompt: User request for the plan
-            conversation_history: Previous conversation
-            events: Event list to populate
-            agent_run_id: ID of the agent run
+            session_id:
+                Chat session ID.
+
+            prompt:
+                User request for the Ship 30 essay.
+
+            conversation_history:
+                Previous messages in the session.
+
+            events:
+                Agent event list.
+
+            agent_run_id:
+                Current agent run ID.
 
         Returns:
-            dict with "response" (markdown plan) and "sources"
+            Dictionary containing generated response and sources.
         """
 
         if events is None:
             events = []
 
-        # ---------------------------------------------------------
-        # Event: Retrieval started
-        # ---------------------------------------------------------
+        # =====================================================
+        # Retrieval started
+        # =====================================================
 
         events.append(
             AgentEvent(
@@ -73,30 +93,35 @@ class Ship30Skill:
                 session_id=session_id,
                 timestamp=datetime.utcnow(),
                 agent_run_id=agent_run_id,
-                metadata={"query": "Ship 30 plan generation"},
+                metadata={
+                    "query": prompt,
+                    "skill": "ship30",
+                },
             )
         )
 
-        # ---------------------------------------------------------
-        # Retrieve relevant knowledge
-        # ---------------------------------------------------------
+        # =====================================================
+        # Retrieve relevant Lenny knowledge
+        # =====================================================
 
         try:
             retrieved_chunks = self.retrieval_service.retrieve(
                 query=prompt,
-                top_k=10,
+                top_k=self.RETRIEVAL_TOP_K,
             )
 
         except Exception as exc:
             logger.warning(
                 "ship30_retrieval_failed",
+                session_id=str(session_id),
                 error=str(exc),
             )
+
             retrieved_chunks = []
 
-        # ---------------------------------------------------------
-        # Event: Retrieval completed
-        # ---------------------------------------------------------
+        # =====================================================
+        # Retrieval completed
+        # =====================================================
 
         events.append(
             AgentEvent(
@@ -106,31 +131,40 @@ class Ship30Skill:
                 agent_run_id=agent_run_id,
                 metadata={
                     "documents_retrieved": len(retrieved_chunks),
+                    "skill": "ship30",
                 },
             )
         )
 
-        # ---------------------------------------------------------
-        # Build context from retrieved chunks
-        # ---------------------------------------------------------
+        # =====================================================
+        # Build context
+        # =====================================================
 
-        context = self._build_context(retrieved_chunks)
+        context = self._build_context(
+            retrieved_chunks
+        )
 
-        # ---------------------------------------------------------
-        # Build structured prompt
-        # ---------------------------------------------------------
+        # =====================================================
+        # Build conversation history
+        # =====================================================
+
+        formatted_history = self._format_history(
+            conversation_history
+        )
+
+        # =====================================================
+        # Build Ship 30 prompt
+        # =====================================================
 
         shipping_prompt = build_ship30_prompt(
             topic=prompt,
             context=context,
-            conversation_history=self._format_history(
-                conversation_history
-            ),
+            conversation_history=formatted_history,
         )
 
-        # ---------------------------------------------------------
-        # Event: LLM started
-        # ---------------------------------------------------------
+        # =====================================================
+        # LLM started
+        # =====================================================
 
         events.append(
             AgentEvent(
@@ -138,36 +172,40 @@ class Ship30Skill:
                 session_id=session_id,
                 timestamp=datetime.utcnow(),
                 agent_run_id=agent_run_id,
-                metadata={"model": self.llm_provider.model_name},
+                metadata={
+                    "model": self.llm_provider.model_name,
+                    "skill": "ship30",
+                },
             )
         )
 
-        # ---------------------------------------------------------
-        # Generate plan
-        # ---------------------------------------------------------
+        # =====================================================
+        # Generate essay
+        # =====================================================
 
         try:
             result = await self.llm_provider.generate(
                 shipping_prompt,
-                temperature=0.3,
+                temperature=0.4,
                 max_tokens=self.MAX_OUTPUT_TOKENS,
             )
 
         except Exception as exc:
             logger.error(
                 "ship30_generation_failed",
+                session_id=str(session_id),
                 error=str(exc),
             )
 
             raise AppError(
                 status_code=500,
                 code="SHIP30_GENERATION_FAILED",
-                message="Failed to generate Ship 30 plan.",
+                message="Failed to generate Ship 30 essay.",
             ) from exc
 
-        # ---------------------------------------------------------
-        # Event: LLM completed
-        # ---------------------------------------------------------
+        # =====================================================
+        # LLM completed
+        # =====================================================
 
         events.append(
             AgentEvent(
@@ -179,13 +217,14 @@ class Ship30Skill:
                     "model": result.model,
                     "provider": result.provider,
                     "response_length": len(result.content),
+                    "skill": "ship30",
                 },
             )
         )
 
-        # ---------------------------------------------------------
-        # Event: Artifact created
-        # ---------------------------------------------------------
+        # =====================================================
+        # Artifact created
+        # =====================================================
 
         events.append(
             AgentEvent(
@@ -204,7 +243,13 @@ class Ship30Skill:
             "ship30_skill_executed",
             session_id=str(session_id),
             sources_count=len(retrieved_chunks),
+            model=result.model,
+            provider=result.provider,
         )
+
+        # =====================================================
+        # Return result
+        # =====================================================
 
         return {
             "response": result.content,
@@ -223,40 +268,110 @@ class Ship30Skill:
             "provider": result.provider,
         }
 
+    # =========================================================
+    # Format history
+    # =========================================================
+
     @staticmethod
     def _format_history(
         history: list[dict[str, str]] | None,
     ) -> str:
-        """Format conversation history for the prompt."""
+        """
+        Format previous conversation into a compact text block.
+        """
 
         if not history:
             return "No previous conversation."
 
-        lines = []
-        for msg in history:
-            role = msg.get("role", "").capitalize()
-            content = msg.get("content", "").strip()
+        lines: list[str] = []
+
+        for message in history:
+            role = message.get(
+                "role",
+                "",
+            ).capitalize()
+
+            content = message.get(
+                "content",
+                "",
+            ).strip()
+
             if content:
-                lines.append(f"{role}: {content}")
+                lines.append(
+                    f"{role}: {content}"
+                )
 
-        return "\n".join(lines) if lines else "No previous conversation."
+        if not lines:
+            return "No previous conversation."
 
-    @staticmethod
-    def _build_context(retrieved_chunks) -> str:
-        """Build context from retrieved chunks."""
+        return "\n".join(lines)
+
+    # =========================================================
+    # Build retrieval context
+    # =========================================================
+
+    @classmethod
+    def _build_context(
+        cls,
+        retrieved_chunks,
+    ) -> str:
+        """
+        Convert retrieved chunks into grounded prompt context.
+        """
 
         if not retrieved_chunks:
             return (
-                "No additional context available. "
-                "Generate the plan based on general knowledge."
+                "No relevant transcript context was retrieved. "
+                "Do not invent Lenny-specific claims. "
+                "State that the available material does not "
+                "provide enough evidence."
             )
 
-        sections = []
-        for i, item in enumerate(retrieved_chunks[:5], start=1):
+        sections: list[str] = []
+
+        for index, item in enumerate(
+            retrieved_chunks[: cls.MAX_CONTEXT_CHUNKS],
+            start=1,
+        ):
             chunk = item.chunk
-            text = chunk.text[:300]
+
+            text = (
+                chunk.text[: cls.MAX_CHARS_PER_CHUNK]
+                .strip()
+            )
+
+            title = (
+                chunk.title
+                or "Untitled source"
+            )
+
+            guest = (
+                chunk.guest
+                or "Unknown guest"
+            )
+
+            date = (
+                chunk.date
+                or "Unknown date"
+            )
+
+            source_url = (
+                chunk.source_url
+                or "Unavailable"
+            )
+
             sections.append(
-                f"Source {i}: {chunk.title}\n{text}..."
+                f"""Source {index}
+
+Title: {title}
+Guest: {guest}
+Date: {date}
+Source URL: {source_url}
+Retrieval Score: {item.score:.3f}
+
+Transcript Content:
+{text}
+"""
             )
 
         return "\n\n".join(sections)

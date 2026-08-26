@@ -1,17 +1,21 @@
 import React, { useEffect, useRef, useState } from "react";
+
 import {
   createSession,
   getSessionMessages,
   sendChatMessage,
+  runAgent,
   type ChatSource,
   type Message,
 } from "./api/client";
+
 import { ArtifactViewer } from "./components/ArtifactViewer";
 
 interface UIMessage {
   role: "user" | "assistant";
   content: string;
   sources?: ChatSource[];
+  skill?: string;
 }
 
 function App() {
@@ -19,7 +23,9 @@ function App() {
   // State
   // ==========================================================
 
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(
+    null
+  );
 
   const [messages, setMessages] = useState<UIMessage[]>([]);
 
@@ -31,9 +37,8 @@ function App() {
 
   const [error, setError] = useState<string | null>(null);
 
-  const [activeArtifactId, setActiveArtifactId] = useState<string | null>(
-    null
-  );
+  const [activeArtifactId, setActiveArtifactId] =
+    useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -52,7 +57,7 @@ function App() {
   // ==========================================================
 
   useEffect(() => {
-    initializeSession();
+    void initializeSession();
   }, []);
 
   const initializeSession = async () => {
@@ -60,19 +65,18 @@ function App() {
       setInitializing(true);
       setError(null);
 
-      // ------------------------------------------------------
-      // Try to reuse existing session
-      // ------------------------------------------------------
-
       const storedSessionId = localStorage.getItem(
         "lenny_session_id"
       );
 
+      // ------------------------------------------------------
+      // Reuse existing session
+      // ------------------------------------------------------
+
       if (storedSessionId) {
         try {
-          const existingMessages = await getSessionMessages(
-            storedSessionId
-          );
+          const existingMessages =
+            await getSessionMessages(storedSessionId);
 
           setSessionId(storedSessionId);
 
@@ -99,9 +103,7 @@ function App() {
             existingSessionError
           );
 
-          localStorage.removeItem(
-            "lenny_session_id"
-          );
+          localStorage.removeItem("lenny_session_id");
         }
       }
 
@@ -136,6 +138,42 @@ function App() {
   };
 
   // ==========================================================
+  // Determine whether request needs agent
+  // ==========================================================
+
+  const shouldUseAgent = (prompt: string): boolean => {
+    const promptLower = prompt.toLowerCase().trim();
+
+    const agentKeywords = [
+      "ship 30",
+      "ship30",
+      "30-day plan",
+      "30 day plan",
+      "30 days writing",
+      "shipping",
+      "written plan",
+      "content plan",
+      "content strategy",
+      "create a memo",
+      "write a memo",
+      "create a document",
+      "generate document",
+      "create template",
+      "html artifact",
+      "markdown document",
+      "create html",
+      "create design",
+      "create framework",
+      "strategic plan",
+      "project plan",
+    ];
+
+    return agentKeywords.some((keyword) =>
+      promptLower.includes(keyword)
+    );
+  };
+
+  // ==========================================================
   // Send message
   // ==========================================================
 
@@ -146,14 +184,10 @@ function App() {
       return;
     }
 
-    // --------------------------------------------------------
-    // Clear error
-    // --------------------------------------------------------
-
     setError(null);
 
     // --------------------------------------------------------
-    // Optimistically display user message
+    // Optimistic user message
     // --------------------------------------------------------
 
     setMessages((previous) => [
@@ -170,7 +204,49 @@ function App() {
 
     try {
       // ------------------------------------------------------
-      // Call backend
+      // Build conversation history
+      // ------------------------------------------------------
+
+      const conversationHistory: Message[] = messages.map(
+        (message) => ({
+          role: message.role,
+          content: message.content,
+        })
+      );
+
+      // ------------------------------------------------------
+      // Agent flow
+      // ------------------------------------------------------
+
+      if (shouldUseAgent(currentInput)) {
+        const result = await runAgent(
+          sessionId,
+          currentInput,
+          conversationHistory
+        );
+
+        setMessages((previous) => [
+          ...previous,
+          {
+            role: "assistant",
+            content: result.response,
+            skill: result.skill,
+          },
+        ]);
+
+        // ----------------------------------------------------
+        // Open generated artifact automatically
+        // ----------------------------------------------------
+
+        if (result.artifact_id) {
+          setActiveArtifactId(result.artifact_id);
+        }
+
+        return;
+      }
+
+      // ------------------------------------------------------
+      // Normal grounded chat flow
       // ------------------------------------------------------
 
       const result = await sendChatMessage(
@@ -178,10 +254,6 @@ function App() {
         currentInput,
         5
       );
-
-      // ------------------------------------------------------
-      // Display assistant response
-      // ------------------------------------------------------
 
       setMessages((previous) => [
         ...previous,
@@ -192,13 +264,16 @@ function App() {
         },
       ]);
     } catch (err) {
-      console.error("Chat request failed:", err);
+      console.error("Request failed:", err);
 
       setError(
         "Something went wrong while generating the response."
       );
 
-      // Remove optimistic user message if request failed.
+      // ------------------------------------------------------
+      // Remove optimistic user message
+      // ------------------------------------------------------
+
       setMessages((previous) => {
         const copy = [...previous];
 
@@ -296,17 +371,14 @@ function App() {
 
   return (
     <div className="h-screen w-screen flex bg-gray-50 p-4 gap-4 font-sans">
-
       {/* ======================================================
           LEFT: CHAT
           ====================================================== */}
 
       <div className="w-1/2 flex flex-col border bg-white rounded-lg shadow-sm overflow-hidden">
-
         {/* Header */}
 
         <div className="p-4 bg-blue-600 text-white flex items-center justify-between">
-
           <div>
             <div className="font-bold text-lg">
               Lenny Growth Assistant
@@ -318,8 +390,9 @@ function App() {
           </div>
 
           <button
-            onClick={startNewConversation}
-            className="text-sm bg-white text-blue-600 px-3 py-2 rounded-md font-medium hover:bg-blue-50 transition"
+            onClick={() => void startNewConversation()}
+            disabled={loading}
+            className="text-sm bg-white text-blue-600 px-3 py-2 rounded-md font-medium hover:bg-blue-50 transition disabled:opacity-50"
           >
             New Chat
           </button>
@@ -344,11 +417,9 @@ function App() {
         {/* Messages */}
 
         <div className="flex-1 p-4 overflow-y-auto space-y-5">
-
           {messages.length === 0 && !loading && (
             <div className="h-full flex items-center justify-center">
               <div className="text-center max-w-md">
-
                 <div className="text-4xl mb-4">
                   🎙️
                 </div>
@@ -362,7 +433,6 @@ function App() {
                   startups, leadership, and insights from
                   Lenny's Podcast and Newsletter.
                 </p>
-
               </div>
             </div>
           )}
@@ -376,7 +446,6 @@ function App() {
                   : "justify-start"
               }`}
             >
-
               <div
                 className={`max-w-[85%] rounded-xl px-4 py-3 ${
                   message.role === "user"
@@ -384,10 +453,23 @@ function App() {
                     : "bg-gray-100 text-gray-800"
                 }`}
               >
+                {/* Message content */}
 
                 <div className="whitespace-pre-wrap leading-relaxed">
                   {message.content}
                 </div>
+
+                {/* Skill indicator */}
+
+                {message.role === "assistant" &&
+                  message.skill && (
+                    <div className="mt-3 text-xs text-gray-500">
+                      Skill:{" "}
+                      <span className="font-semibold">
+                        {message.skill}
+                      </span>
+                    </div>
+                  )}
 
                 {/* Sources */}
 
@@ -395,20 +477,17 @@ function App() {
                   message.sources &&
                   message.sources.length > 0 && (
                     <div className="mt-4 pt-3 border-t border-gray-200">
-
                       <div className="text-xs font-semibold text-gray-500 mb-2">
                         Sources
                       </div>
 
                       <div className="space-y-2">
-
                         {message.sources.map(
                           (source, sourceIndex) => (
                             <div
                               key={`${source.chunk_id}-${sourceIndex}`}
                               className="text-xs bg-white rounded-md p-2 border"
                             >
-
                               <div className="font-medium text-gray-700">
                                 {source.title}
                               </div>
@@ -420,7 +499,6 @@ function App() {
                               )}
 
                               <div className="flex items-center justify-between mt-1">
-
                                 {source.date && (
                                   <span className="text-gray-400">
                                     {source.date}
@@ -431,7 +509,6 @@ function App() {
                                   Score:{" "}
                                   {source.score.toFixed(3)}
                                 </span>
-
                               </div>
 
                               {source.source_url && (
@@ -444,17 +521,13 @@ function App() {
                                   View source
                                 </a>
                               )}
-
                             </div>
                           )
                         )}
-
                       </div>
                     </div>
                   )}
-
               </div>
-
             </div>
           ))}
 
@@ -462,26 +535,21 @@ function App() {
 
           {loading && (
             <div className="flex justify-start">
-
               <div className="bg-gray-100 rounded-xl px-4 py-3 text-gray-500">
                 <span className="animate-pulse">
                   Lenny is thinking...
                 </span>
               </div>
-
             </div>
           )}
 
           <div ref={messagesEndRef} />
-
         </div>
 
         {/* Input */}
 
         <div className="p-3 border-t bg-white">
-
           <div className="flex gap-2">
-
             <input
               value={input}
               onChange={(event) =>
@@ -508,15 +576,12 @@ function App() {
             >
               {loading ? "..." : "Send"}
             </button>
-
           </div>
 
           <div className="text-xs text-gray-400 mt-2 text-center">
             Powered by Lenny's Podcast & Newsletter knowledge
           </div>
-
         </div>
-
       </div>
 
       {/* ======================================================
@@ -528,7 +593,6 @@ function App() {
           artifactId={activeArtifactId}
         />
       </div>
-
     </div>
   );
 }

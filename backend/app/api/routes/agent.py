@@ -50,7 +50,6 @@ def get_retrieval(
         min_score=settings.retrieval_min_score,
     )
 
-    # Do not silently ignore retrieval/index errors.
     service.load()
 
     return service
@@ -63,7 +62,11 @@ def get_retrieval(
 
 class AgentRequest(BaseModel):
     session_id: uuid.UUID = Field(...)
-    prompt: str = Field(..., min_length=1)
+
+    prompt: str = Field(
+        ...,
+        min_length=1,
+    )
 
     conversation_history: List[Dict[str, str]] = Field(
         default_factory=list
@@ -160,23 +163,61 @@ async def run_agent(
 
         artifact_id = None
 
-        if agent_run.skill in {"ship30", "artifact"}:
+        if agent_run.skill in {
+            "ship30",
+            "artifact",
+        }:
 
             artifact_id = uuid.uuid4()
 
+            # ------------------------------------------------
+            # Ship 30 Artifact
+            # ------------------------------------------------
+
             if agent_run.skill == "ship30":
-                title = "30-Day Execution Plan"
+
+                title = "Ship 30 for 30 Essay"
+
+                artifact_type = "ship30"
+
+                artifact_metadata = {
+                    "skill": "ship30",
+                    "format": "markdown",
+                    "description": (
+                        "Approximately 1,250-word "
+                        "Ship 30 for 30-style essay "
+                        "grounded in Lenny's Podcast "
+                        "and Newsletter knowledge."
+                    ),
+                }
+
+            # ------------------------------------------------
+            # Generic Artifact
+            # ------------------------------------------------
+
             else:
+
                 title = "Generated Document"
+
+                artifact_type = "artifact"
+
+                artifact_metadata = {
+                    "skill": "artifact",
+                    "format": "markdown",
+                }
+
+            # ------------------------------------------------
+            # Create DB artifact
+            # ------------------------------------------------
 
             db_artifact = DBArtifact(
                 id=artifact_id,
                 session_id=request.session_id,
                 run_id=agent_run.id,
-                artifact_type=agent_run.skill,
+                artifact_type=artifact_type,
                 title=title,
                 content=agent_run.output,
-                metadata_json={},
+                metadata_json=artifact_metadata,
             )
 
             db.add(db_artifact)
@@ -193,26 +234,38 @@ async def run_agent(
 
         return {
             "response": (
-                "Artifact generated successfully. "
-                "Please view it in the side panel."
-                if artifact_id
-                else agent_run.output
+                "Ship 30 for 30 essay generated successfully. "
+                "Please view it in the Artifact Viewer."
+                if agent_run.skill == "ship30"
+                else (
+                    "Artifact generated successfully. "
+                    "Please view it in the side panel."
+                    if artifact_id
+                    else agent_run.output
+                )
             ),
+
             "artifact_id": (
                 str(artifact_id)
                 if artifact_id
                 else None
             ),
+
             "run_id": str(agent_run.id),
+
             "skill": agent_run.skill,
+
             "status": agent_run.status,
         }
 
     except HTTPException:
+
         db.rollback()
+
         raise
 
     except Exception as exc:
+
         db.rollback()
 
         raise HTTPException(
@@ -246,6 +299,7 @@ def get_run_events(
     )
 
     if agent_run is None:
+
         raise HTTPException(
             status_code=404,
             detail=f"Agent run {run_id} not found.",
@@ -257,8 +311,12 @@ def get_run_events(
 
     events = (
         db.query(DBAgentEvent)
-        .filter(DBAgentEvent.run_id == run_id)
-        .order_by(DBAgentEvent.timestamp)
+        .filter(
+            DBAgentEvent.run_id == run_id
+        )
+        .order_by(
+            DBAgentEvent.timestamp
+        )
         .all()
     )
 

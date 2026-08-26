@@ -44,6 +44,18 @@ export interface Message {
 }
 
 // ============================================================
+// Agent Response
+// ============================================================
+
+export interface AgentResponse {
+  response: string;
+  artifact_id: string | null;
+  run_id: string;
+  skill: string;
+  status: string;
+}
+
+// ============================================================
 // Session API
 // ============================================================
 
@@ -81,6 +93,62 @@ export const sendChatMessage = async (
     prompt,
     top_k: topK,
   });
+
+  return response.data;
+};
+
+// ============================================================
+// Agent API
+// ============================================================
+
+export const runAgent = async (
+  sessionId: string,
+  prompt: string,
+  conversationHistory: Message[] = []
+): Promise<AgentResponse> => {
+  const response = await api.post<AgentResponse>("/agent/run", {
+    session_id: sessionId,
+    prompt,
+    conversation_history: conversationHistory.map((message) => ({
+      role: message.role,
+      content: message.content,
+    })),
+  });
+
+  return response.data;
+};
+
+// ============================================================
+// Artifact API
+// ============================================================
+
+export interface Artifact {
+  id: string;
+  session_id: string;
+  run_id: string | null;
+  artifact_type: string;
+  title: string;
+  content: string;
+  metadata_json?: Record<string, unknown>;
+  created_at?: string;
+}
+
+export const getArtifact = async (
+  artifactId: string
+): Promise<Artifact> => {
+  const response = await api.get<Artifact>(
+    `/artifacts/${artifactId}`
+  );
+
+  return response.data;
+};
+
+export const getSessionArtifacts = async (
+  sessionId: string
+): Promise<Artifact[]> => {
+  const response = await api.get<Artifact[]>(
+    `/artifacts/sessions/${sessionId}`
+  );
 
   return response.data;
 };
