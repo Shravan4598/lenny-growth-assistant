@@ -1182,6 +1182,7 @@ This architecture provides a foundation for:
 
 ---
 
+
 # License
 
-This project was developed as part of a technical assignment and is intended for evaluation and educational purposes.
+This project is licensed under the MIT License.
