@@ -6,6 +6,14 @@ The application combines transcript ingestion, semantic embeddings, FAISS vector
 
 ---
 
+## Demo
+
+[![Watch the demo](https://img.youtube.com/vi/grZyoM4tT84/maxresdefault.jpg)](https://youtu.be/grZyoM4tT84)
+
+🎥 **Video walkthrough:** [https://youtu.be/grZyoM4tT84](https://youtu.be/grZyoM4tT84)
+
+---
+
 ## Features
 
 - Lenny Podcast and Newsletter knowledge ingestion
