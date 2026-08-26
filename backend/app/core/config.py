@@ -117,6 +117,20 @@ class Settings(BaseSettings):
     )
 
     # ------------------------------------------------------------------
+    # Lenny Knowledge Base
+    # ------------------------------------------------------------------
+
+    lenny_repository_path: str = Field(
+        default="data/external/lennys-newsletterpodcastdata",
+        alias="LENNY_REPOSITORY_PATH",
+    )
+
+    lenny_content_types: list[str] = Field(
+        default=["podcasts", "newsletters"],
+        alias="LENNY_CONTENT_TYPES",
+    )
+
+    # ------------------------------------------------------------------
     # Cloud provider
     # ------------------------------------------------------------------
 

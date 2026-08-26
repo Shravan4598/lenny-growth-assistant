@@ -32,6 +32,7 @@ services:
       context: ./backend
 
     container_name: lenny-growth-backend
+    restart: unless-stopped
 
     env_file:
       - .env
@@ -41,6 +42,7 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
 
     volumes:
+      - ./backend:/app
       - ./data:/app/data
 
     ports:
@@ -50,9 +52,8 @@ services:
       postgres:
         condition: service_healthy
 
-    # THIS LINE ENSURES MIGRATIONS RUN AUTOMATICALLY ON EVERY STARTUP
     command: >
-      sh -c "alembic upgrade head && 
+      sh -c "alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
     healthcheck:
@@ -74,12 +75,12 @@ services:
       context: ./frontend
 
     container_name: lenny-growth-frontend
+    restart: unless-stopped
 
     ports:
       - "5173:5173"
 
     environment:
-      # NOTE: Changed from 'backend' to 'localhost' so the browser can reach it natively
       VITE_API_BASE_URL: http://localhost:8000/api/v1
 
     depends_on:
